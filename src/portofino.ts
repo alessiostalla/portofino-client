@@ -15,13 +15,19 @@ export class ResourceAction {
         protected url: string, protected parent: ResourceAction,
         public errorHandler: (data: any) => void = console.error) {
         this.http = new RxJSHttpClient();
+        this.refresh();
+    }
+
+    refresh() {
+        this.operations.forEach(op => { delete this[op]; });
+        this.operations = [];
         const resource = this;
         this.http.get(this.url + "/:operations").pipe(mergeMap(v => v.json())).subscribe({
             next(ops: Operation[]) {
                 ops.forEach(op => resource.installOperation(op));
             },
             error: this.errorHandler
-        })
+        });
     }
 
     get(segment: string): ResourceAction {
