@@ -1,6 +1,4 @@
-import {RxJSHttpClient} from "rxjs-http-client";
-import {mergeMap} from "rxjs";
-import {HttpRequestConfig} from "rxjs-http-client/types/http-request-config.class";
+import {concatMap, from, map, mergeMap, of, throwError, Observable} from "rxjs";
 
 interface Operation {
     signature: string;
@@ -8,13 +6,12 @@ interface Operation {
 }
 
 export class ResourceAction {
-    protected http: RxJSHttpClient;
     public operations: string[] = [];
 
     constructor(
         protected url: string, protected parent: ResourceAction,
-        public errorHandler: (data: any) => void = console.error) {
-        this.http = new RxJSHttpClient();
+        protected http: HttpClient = parent.http,
+        protected errorHandler: (data: any) => void = console.error) {
         this.refresh();
     }
 
@@ -22,7 +19,7 @@ export class ResourceAction {
         this.operations.forEach(op => { delete this[op]; });
         this.operations = [];
         const resource = this;
-        this.http.get(this.url + "/:operations").pipe(mergeMap(v => v.json())).subscribe({
+        this.http.get(this.url + "/:operations").pipe(mergeMap(v => from(v.json()))).subscribe({
             next(ops: Operation[]) {
                 ops.forEach(op => resource.installOperation(op));
             },
@@ -51,7 +48,7 @@ export class ResourceAction {
         } else {
             path = "";
         }
-        const operationFunction = (config?: Partial<HttpRequestConfig>) => {
+        const operationFunction = (config: RequestInit = {}) => {
             return this.http[method](this.url + "/" + path, config);
         }
         let name;
@@ -66,8 +63,17 @@ export class ResourceAction {
 }
 
 export class Portofino extends ResourceAction {
-    constructor(public url: string) {
-        super(url, null);
+    constructor(url: string, errorHandler: (data: any) => void = console.error) {
+        const authInterceptor: ResponseInterceptor = {
+            intercept(request, response, http) {
+                if (response.status === 401) {
+                    return http.request(request); //TODO ask for credentials
+                } else {
+                    return of(response);
+                }
+            }
+        };
+        super(url, null, new HttpClient([],[authInterceptor]), errorHandler);
     }
 
     static connect(url) {
@@ -84,4 +90,43 @@ export class Portofino extends ResourceAction {
     get root() {
         return this;
     }
+}
+
+export interface RequestInterceptor {
+    intercept(request: Request, http: HttpClient): Request;
+}
+
+export interface ResponseInterceptor {
+    intercept(request: Request, response: Response, http: HttpClient): Observable<Response>;
+}
+
+export class HttpClient {
+    constructor(
+        protected requestInterceptors: RequestInterceptor[] = [],
+        protected responseInterceptors: ResponseInterceptor[] = []) {}
+
+    get(url, config: RequestInit = {}) {
+        return this.request(new Request(url, {...config, method: "GET", body: null }));
+    }
+
+    request(request: Request): Observable<Response> {
+        for (const interceptor of this.requestInterceptors) {
+            request = interceptor.intercept(request, this);
+        }
+        let observable = from(fetch(request));
+        for (const interceptor of this.responseInterceptors) {
+            observable = observable.pipe(mergeMap(response => interceptor.intercept(request, response, this)));
+        }
+        return observable.pipe(checkHttpStatus());
+    }
+}
+
+export function checkHttpStatus() {
+    return function (source) {
+        return source.pipe(concatMap((res: Response) => {
+            return res.ok
+                ? of(res)
+                : throwError(() => res);
+        }));
+    };
 }
