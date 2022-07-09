@@ -1,5 +1,5 @@
-import {concatMap, from, map, mergeMap, of, throwError, Observable} from "rxjs";
-import * as http from "http";
+import {from, mergeMap, Observable, of} from "rxjs";
+import {HttpClient, RequestInterceptor, ResponseInterceptor} from "./httpClient";
 
 interface Operation {
     signature: string;
@@ -28,11 +28,11 @@ export class ResourceAction {
         return this;
     }
 
-    get(segment: string): ResourceAction {
+    get(segment: string, type: new (...args) => ResourceAction = ResourceAction): ResourceAction {
         if (segment.startsWith("/")) {
             return this.root.get(segment);
         } else {
-            return new ResourceAction(this.url + "/" + segment, this).refresh();
+            return new type(this.url + "/" + segment, this).refresh();
         }
     }
 
@@ -41,6 +41,9 @@ export class ResourceAction {
     }
 
     installOperation(op: Operation) {
+        if (!op.signature) {
+            return;
+        }
         const definition = op.signature.split(" ");
         const method = definition[0].toLowerCase();
         let path: string;
@@ -73,14 +76,7 @@ export class UsernamePasswordAuthenticator implements Authenticator {
     constructor(protected username: string, protected password: string) {}
 
     authenticate(request: Request, portofino: Portofino): Observable<Response> {
-        const loginReq: RequestInit = {
-            body: JSON.stringify({ username: this.username, password: this.password }),
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json'
-            }
-        };
-        return (<any>portofino.auth).login(loginReq).pipe(
+        return (<any>portofino.auth).login({ json: { username: this.username, password: this.password } }).pipe(
             mergeMap((response: Response) => from(response.json())),
             mergeMap((userInfo: any) => {
                 portofino.token = userInfo.jwt;
@@ -90,8 +86,9 @@ export class UsernamePasswordAuthenticator implements Authenticator {
 }
 
 export class Portofino extends ResourceAction {
-    public auth: ResourceAction;
     public token: string;
+    public auth: ResourceAction;
+    public upstairs: Upstairs;
 
     constructor(url: string, errorHandler: (data: any) => void, protected authenticator?: Authenticator) {
         super(url, null, errorHandler, new HttpClient());
@@ -121,11 +118,11 @@ export class Portofino extends ResourceAction {
         return new Portofino(url, errorHandler, authenticator).refresh();
     }
 
-    get(segment: string) {
+    get(segment: string, type: new (...args) => ResourceAction = ResourceAction) {
         if (!segment.startsWith("/")) {
             segment = "/" + segment;
         }
-        return new ResourceAction(this.url + segment, this).refresh();
+        return new type(this.url + segment, this).refresh();
     }
 
     get root() {
@@ -135,49 +132,9 @@ export class Portofino extends ResourceAction {
     refresh(): this {
         super.refresh();
         this.auth = this.get(":auth");
+        this.upstairs = this.get("portofino-upstairs", Upstairs);
         return this;
     }
 }
 
-export interface RequestInterceptor {
-    intercept(request: Request): Request;
-}
-
-export interface ResponseInterceptor {
-    intercept(request: Request, response: Response): Observable<Response>;
-}
-
-export class HttpClient {
-    constructor(
-        public requestInterceptors: RequestInterceptor[] = [],
-        public responseInterceptors: ResponseInterceptor[] = []) {}
-
-    get(url, config: RequestInit = {}) {
-        return this.request(new Request(url, {...config, method: "GET", body: null }));
-    }
-
-    post(url, config: RequestInit = {}) {
-        return this.request(new Request(url, {...config, method: "POST", body: config.body }));
-    }
-
-    request(request: Request): Observable<Response> {
-        for (const interceptor of this.requestInterceptors) {
-            request = interceptor.intercept(request);
-        }
-        let observable = from(fetch(request));
-        for (const interceptor of this.responseInterceptors) {
-            observable = observable.pipe(mergeMap(response => interceptor.intercept(request, response)));
-        }
-        return observable.pipe(checkHttpStatus());
-    }
-}
-
-export function checkHttpStatus() {
-    return function (source) {
-        return source.pipe(concatMap((res: Response) => {
-            return res.ok
-                ? of(res)
-                : throwError(() => res);
-        }));
-    };
-}
+export class Upstairs extends ResourceAction {}
