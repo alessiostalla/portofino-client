@@ -6,6 +6,7 @@
         "build": "tsc",
         "lint": "eslint src tests"
     },
+    "module": "dist/index.js",
     "dependencies": {
         "rxjs": "^7.5.5"
     },

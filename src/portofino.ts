@@ -1,4 +1,4 @@
-import {from, mergeMap, Observable, of} from "rxjs";
+import {BehaviorSubject, filter, from, map, mergeMap, Observable, of, takeWhile} from "rxjs";
 import {HttpClient, RequestInterceptor, ResponseInterceptor} from "./httpClient";
 
 interface Operation {
@@ -8,6 +8,8 @@ interface Operation {
 
 export class ResourceAction {
     public operations: string[] = [];
+    public ready$ = new BehaviorSubject<boolean>(false);
+    public whenReady$ = this.ready$.pipe(filter(ready => ready), map(() => this));
 
     constructor(
         protected url: string, protected parent: ResourceAction,
@@ -16,12 +18,14 @@ export class ResourceAction {
     }
 
     refresh() {
+        this.ready$.next(false);
         this.operations.forEach(op => { delete this[op]; });
         this.operations = [];
         const resource = this;
         this.http.get(this.url + "/:operations").pipe(mergeMap(v => from(v.json()))).subscribe({
             next(ops: Operation[]) {
                 ops.forEach(op => resource.installOperation(op));
+                resource.ready$.next(true);
             },
             error: this.errorHandler
         });
@@ -40,7 +44,18 @@ export class ResourceAction {
         return this.parent.root;
     }
 
-    installOperation(op: Operation) {
+    whenReady(fn: (it: this) => unknown) {
+        const self = this;
+        this.ready$.pipe(takeWhile(x => !x, true)).subscribe({
+            next(ready) {
+                if (ready) {
+                    fn(self);
+                }
+            }
+        });
+    }
+
+    protected installOperation(op: Operation) {
         if (!op.signature) {
             return;
         }
@@ -131,9 +146,23 @@ export class Portofino extends ResourceAction {
 
     refresh(): this {
         super.refresh();
+        this.ready$.next(false);
         this.auth = this.get(":auth");
-        this.upstairs = this.get("portofino-upstairs", Upstairs);
+        const self = this;
+        this.auth.whenReady(() => {
+            self.ready$.next(true);
+            self.upstairs = self.get("portofino-upstairs", Upstairs);
+        });
         return this;
+    }
+
+    logout() {
+        const self = this;
+        (<any>this.auth).logout().subscribe({
+            next() {
+                self.token = null;
+            }
+        })
     }
 }
 
