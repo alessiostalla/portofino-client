@@ -99,7 +99,7 @@ export class Portofino extends ResourceAction {
         const credentialsInterceptor: RequestInterceptor = {
             intercept(request) {
                 if (self.token && !request.headers.has(NO_AUTH_HEADER)) {
-                    request.headers.set("Authentication", "Bearer " + self.token);
+                    request.headers.set("Authorization", "Bearer " + self.token);
                 }
                 return request;
             }
