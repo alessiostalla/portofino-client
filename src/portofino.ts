@@ -1,13 +1,15 @@
-import {BehaviorSubject, filter, from, map, mergeMap, Observable, of, takeWhile} from "rxjs";
+import {BehaviorSubject, filter, from, map, mergeMap, Observable, of, takeWhile, tap} from "rxjs";
 import {HttpClient, RequestInterceptor, ResponseInterceptor} from "./httpClient";
 
 interface Operation {
     signature: string;
     name: string;
+    available: boolean;
+    invoke: (config: RequestInit) => Observable<Response>;
 }
 
 export class ResourceAction {
-    public operations: string[] = [];
+    public operations: { [name: string]: Operation } = {};
     public ready$ = new BehaviorSubject<boolean>(false);
     public whenReady$ = this.ready$.pipe(filter(ready => ready), map(() => this));
 
@@ -19,8 +21,10 @@ export class ResourceAction {
 
     refresh() {
         this.ready$.next(false);
-        this.operations.forEach(op => { delete this[op]; });
-        this.operations = [];
+        for (const op in this.operations) {
+            delete this[op];
+        }
+        this.operations = {};
         const resource = this;
         this.http.get(this.url + "/:operations").pipe(mergeMap(v => from(v.json()))).subscribe({
             next(ops: Operation[]) {
@@ -62,12 +66,28 @@ export class ResourceAction {
         const definition = op.signature.split(" ");
         const method = definition[0].toLowerCase();
         let path: string;
+        const pathParams: string[] = [];
         if (definition.length > 1) {
             path = definition[1];
+            for (const pathParam of path.matchAll(/\{.*?}/g)) {
+                pathParams.push(pathParam[0]);
+            }
         } else {
             path = "";
         }
-        const operationFunction = (config: RequestInit = {}) => {
+        const operationFunction = (...args) => {
+            let config = {};
+            if (args.length == pathParams.length + 1) {
+                config = args[pathParams.length];
+                args = args.slice(0, pathParams.length);
+            }
+            if (args.length <= pathParams.length) {
+                for (let i = 0; i < args.length; i++) {
+                    path = path.replace(pathParams[i], args[i]);
+                }
+            } else {
+                throw "Too many path params, expected " + pathParams.length + ", got " + args.length;
+            }
             return this.http[method](this.url + "/" + path, config);
         }
         let name;
@@ -77,7 +97,9 @@ export class ResourceAction {
             name = op.name;
         }
         this[name] = operationFunction;
-        this.operations.push(name);
+        operationFunction.available = op.available;
+        op.invoke = operationFunction;
+        this.operations[name] = op;
     }
 }
 
@@ -156,13 +178,9 @@ export class Portofino extends ResourceAction {
         return this;
     }
 
-    logout() {
+    logout(): Observable<Response> {
         const self = this;
-        (<any>this.auth).logout().subscribe({
-            next() {
-                self.token = null;
-            }
-        })
+        return (<any>this.auth).logout().pipe(tap(() => { self.token = null; }));
     }
 }
 

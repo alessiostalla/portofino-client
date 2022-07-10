@@ -20,6 +20,9 @@ portofino.whenReady((p) => { // p is just a shorthand for portofino
     p.get("projects/PRJ_1").whenReady(pr => pr.load().subscribe()); 
     // Alternate syntax, same effect as above
     p.get("projects").get("PRJ_1").whenReady(pr => pr.load().subscribe());
+    // Upstairs methods
+    p.upstairs.get("database/tables").whenReady(
+        db => db.getTablesInSchema("db", "schema").subscribe());
 });
 // Or, if you need an Observable:
 portofino.get("projects").whenReady$.subscribe(pr => pr.load().subscribe());
