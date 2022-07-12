@@ -1,4 +1,4 @@
-import {BehaviorSubject, filter, from, map, mergeMap, Observable, of, takeWhile, tap} from "rxjs";
+import {catchError, from, map, mergeMap, Observable, of, ReplaySubject, tap} from "rxjs";
 import {HttpClient, RequestInterceptor, ResponseInterceptor} from "./httpClient";
 
 interface Operation {
@@ -10,53 +10,73 @@ interface Operation {
 
 export class ResourceAction {
     public operations: { [name: string]: Operation } = {};
-    public ready$ = new BehaviorSubject<boolean>(false);
-    public whenReady$ = this.ready$.pipe(filter(ready => ready), map(() => this));
 
     constructor(
         protected url: string, protected parent: ResourceAction,
-        protected errorHandler: (data: any) => void = console.error,
         public http: HttpClient = parent.http) {
     }
 
-    refresh() {
-        this.ready$.next(false);
-        for (const op in this.operations) {
-            delete this[op];
-        }
-        this.operations = {};
+    refresh(): Observable<this> {
         const resource = this;
-        this.http.get(this.url + "/:operations").pipe(mergeMap(v => from(v.json()))).subscribe({
-            next(ops: Operation[]) {
+        return this.http.get(this.url + "/:operations").pipe(
+            mergeMap(v => from(v.json())),
+            map((ops: Operation[]) => {
+                for (const op in resource.operations) {
+                    delete resource[op];
+                }
+                resource.operations = {};
                 ops.forEach(op => resource.installOperation(op));
-                resource.ready$.next(true);
-            },
-            error: this.errorHandler
-        });
-        return this;
+                return resource;
+            }));
     }
 
-    get(segment: string, type: new (...args) => ResourceAction = ResourceAction): ResourceAction {
+    protected proxy<T extends ResourceAction>(observable: Observable<T>) {
+        const subject = new ReplaySubject<T>(1);
+        observable.subscribe(subject);
+        const self = this;
+        if (typeof Proxy === "function") {
+            return new Proxy(subject, {
+                get(target, p: string | symbol, receiver: any): any {
+                    if (p === "get") {
+                        return (...args: any[]) => self.proxy(
+                            subject.pipe(mergeMap(r => r.get.apply(r, args))) as Observable<any>);
+                    } else if(p === "operations") {
+                        return subject.pipe(map(r => r.operations));
+                    } else if(self.isProxyProperty(p)) {
+                        return self.proxy(subject.pipe(mergeMap(r => {
+                            return r[p] as Observable<any>
+                        })));
+                    } else if(p in subject || p === "operator" || p === "source") { // RxJS members
+                        return subject[p];
+                    } else {
+                        return (...args: any[]) => subject.pipe(mergeMap(r => r[p].apply(r, args)));
+                    }
+                }
+            });
+        } else {
+            return subject;
+        }
+    }
+
+    protected isProxyProperty(name: string | symbol): boolean {
+        return false;
+    }
+
+    get(segment: string, type: new (...args) => ResourceAction = ResourceAction, proxy = true) {
         if (segment.startsWith("/")) {
             return this.root.get(segment);
         } else {
-            return new type(this.url + "/" + segment, this).refresh();
+            const action = new type(this.url + "/" + segment, this).refresh();
+            if (proxy) {
+                return this.proxy(action);
+            } else {
+                return action;
+            }
         }
     }
 
     get root() {
         return this.parent.root;
-    }
-
-    whenReady(fn: (it: this) => unknown) {
-        const self = this;
-        this.ready$.pipe(takeWhile(x => !x, true)).subscribe({
-            next(ready) {
-                if (ready) {
-                    fn(self);
-                }
-            }
-        });
     }
 
     protected installOperation(op: Operation) {
@@ -124,11 +144,11 @@ export class UsernamePasswordAuthenticator implements Authenticator {
 
 export class Portofino extends ResourceAction {
     public token: string;
-    public auth: ResourceAction;
-    public upstairs: Upstairs;
+    public auth: Observable<ResourceAction> | ResourceAction;
+    public upstairs: Observable<Upstairs> | Upstairs;
 
-    constructor(url: string, errorHandler: (data: any) => void, protected authenticator?: Authenticator) {
-        super(url, null, errorHandler, new HttpClient());
+    constructor(url: string, protected authenticator?: Authenticator) {
+        super(url, null, new HttpClient());
         const self = this;
         const credentialsInterceptor: RequestInterceptor = {
             intercept(request) {
@@ -151,31 +171,39 @@ export class Portofino extends ResourceAction {
         this.http.responseInterceptors = [authInterceptor];
     }
 
-    static connect(url, authenticator: Authenticator, errorHandler: (data: any) => void = console.error) {
-        return new Portofino(url, errorHandler, authenticator).refresh();
+    static connect(url, authenticator: Authenticator) {
+        const portofino = new Portofino(url, authenticator);
+        return portofino.proxy(portofino.refresh());
     }
 
-    get(segment: string, type: new (...args) => ResourceAction = ResourceAction) {
+    get(segment: string, type: new (...args) => ResourceAction = ResourceAction, proxy = true) {
         if (!segment.startsWith("/")) {
             segment = "/" + segment;
         }
-        return new type(this.url + segment, this).refresh();
+        const action = new type(this.url + segment, this).refresh();
+        if (proxy) {
+            return this.proxy(action);
+        } else {
+            return action;
+        }
     }
 
     get root() {
         return this;
     }
 
-    refresh(): this {
-        super.refresh();
-        this.ready$.next(false);
-        this.auth = this.get(":auth");
+    refresh(): Observable<this> {
         const self = this;
-        this.auth.whenReady(() => {
-            self.ready$.next(true);
-            self.upstairs = self.get("portofino-upstairs", Upstairs);
-        });
-        return this;
+        return super.refresh().pipe(
+            tap(() => {
+                self.auth = self.get(":auth");
+                self.upstairs = self.proxy(self.get("portofino-upstairs", Upstairs, false)
+                    .pipe(catchError(() => of(null))));
+            }));
+    }
+
+    protected isProxyProperty(name) {
+        return super.isProxyProperty(name) || name === "auth" || name === "upstairs";
     }
 
     logout(): Observable<Response> {

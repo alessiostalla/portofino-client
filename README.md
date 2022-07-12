@@ -2,30 +2,64 @@
 
 A JavaScript library to inspect and modify a [Portofino](https://github.com/ManyDesigns/Portofino) service.
 
-Its only dependencies are RxJS and the fetch API.
+Its only dependencies are RxJS and the fetch API. Therefore, it can work both on the browser and in Node.
 
 ## Usage
 
+We start by connecting to a running Portofino service:
+
 ```javascript
-// Connect, with credentials
 const portofino = Portofino.connect(
     "http://localhost:8080/demo-tt/api", 
     new UsernamePasswordAuthenticator("admin", "admin"));
-// Make requests
-portofino.whenReady((p) => { // p is just a shorthand for portofino
-    p.upstairs.getInfo().subscribe({ next(x) { console.log(x)}});
-    // CRUD, list
-    p.get("projects").whenReady(pr => pr.load().subscribe());
-    // CRUD, single object
-    p.get("projects/PRJ_1").whenReady(pr => pr.load().subscribe()); 
-    // Alternate syntax, same effect as above
-    p.get("projects").get("PRJ_1").whenReady(pr => pr.load().subscribe());
-    // Upstairs methods
-    p.upstairs.get("database/tables").whenReady(
-        db => db.getTablesInSchema("db", "schema").subscribe());
-});
-// Or, if you need an Observable:
-portofino.get("projects").whenReady$.subscribe(pr => pr.load().subscribe());
+```
+Then, we can make requests to the server. Every resource and request is an RxJS Observable. 
+These are proxied so that we don't have to explicitly pipe or subscribe to chain them. Some examples:
+
+```javascript
+const observer = { next(x) { console.log(x) }};
+// Print info about the application
+portofino.upstairs.getInfo().subscribe(observer);
+// CRUD, list
+portofino.get("projects").load().subscribe(observer);
+// CRUD, single object
+portofino.get("projects/PRJ_1").load().subscribe(observer);
+// Alternate syntax, same effect as above
+portofino.get("projects").get("PRJ_1").load().subscribe(observer);
+// Upstairs methods
+portofino.upstairs.get("database/tables")
+    .getTablesInSchema("db", "schema")
+    .subscribe(observer);
 // Terminate the session
 portofino.logout();
 ```
+
+Operations such as _load()_ above for CRUD, or _getTablesInSchema(db, schema)_, are automatically discovered by querying the Portofino service.
+That's why `resource.get(subresource)` returns an _Observable_.
+
+To know the available operations on a resource and their signature, access its _operations_ property:
+
+```javascript
+portofino.get("projects").operations.subscribe(observer);
+```
+
+### Explicit RxJS
+
+If for whatever reason we want to use the RxJS APIs directly without proxies we can do so:
+
+```javascript
+portofino.pipe(
+    mergeMap(p => p.get("projects")),
+    mergeMap(pr => pr.get("PRJ_1")),
+    mergeMap(prj1 => prj1.load())
+).subscribe();
+```
+
+Notice how _portofino_ as well as everything _get_ returns is an _Observable&lt;ResourceAction&gt;_, while the result of
+invoking operations on the server (such as _load_ in the previous example) is an _Observer<Response>_.
+
+## Compatibility
+
+portofino-commander is developed and tested against Portofino 6.
+
+While portofino-commander's general approach works with Portofino 5,  
