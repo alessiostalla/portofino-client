@@ -56,10 +56,14 @@ portofino.pipe(
 ```
 
 Notice how _portofino_ as well as everything _get_ returns is an _Observable&lt;ResourceAction&gt;_, while the result of
-invoking operations on the server (such as _load_ in the previous example) is an _Observer<Response>_.
+invoking operations on the server (such as _load_ in the previous example) is an _Observable&lt;Response&gt;_.
 
 ## Compatibility
 
 portofino-commander is developed and tested against Portofino 6.
 
-While portofino-commander's general approach works with Portofino 5,  
+While portofino-commander's general approach works with Portofino 5, some of the REST APIs in P5 weren't designed with 
+such a client in mind, and require some extra handling to invoke them. For example, some methods require that we 
+explicitly set an Accept header to restrict the response to JSON. In other cases, operation names conflict with 
+portofino-commander's own functions (e.g. "get") and thus we cannot call them using the simplified syntax that we've 
+shown in the Usage section.
