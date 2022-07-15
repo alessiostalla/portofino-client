@@ -31,7 +31,7 @@ portofino.upstairs.get("database/tables")
     .getTablesInSchema("db", "schema")
     .subscribe(observer);
 // Terminate the session
-portofino.logout();
+portofino.logout().subscribe();
 ```
 
 Operations such as _load()_ above for CRUD, or _getTablesInSchema(db, schema)_, are automatically discovered by querying the Portofino service.
