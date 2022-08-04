@@ -11,7 +11,8 @@ We start by connecting to a running Portofino service:
 ```javascript
 const portofino = Portofino.connect(
     "http://localhost:8080/demo-tt/api", 
-    new UsernamePasswordAuthenticator("admin", "admin"));
+    new UsernamePasswordAuthenticator(
+        new FixedUsernamePasswordProvider("admin", "admin")));
 ```
 Then, we can make requests to the server. Every resource and request is an RxJS Observable. 
 These are proxied so that we don't have to explicitly pipe or subscribe to chain them. Some examples:
@@ -37,11 +38,27 @@ portofino.logout().subscribe();
 Operations such as _load()_ above for CRUD, or _getTablesInSchema(db, schema)_, are automatically discovered by querying the Portofino service.
 That's why `resource.get(subresource)` returns an _Observable_.
 
+### Introspection
+
 To know the available operations on a resource and their signature, access its _operations_ property:
 
 ```javascript
 portofino.get("projects").operations.subscribe(observer);
+//Or, alternatively
+portofino.get("projects").subscribe({ 
+    next(p) { console.log(p.operations); }
+});
 ```
+
+Each operation can be invoked:
+
+```javascript
+portofino.get("projects").operations.pipe(
+    mergeMap(ops => ops["load"].invoke())
+).subscribe(observer);
+```
+
+Usually there's no reason to invoke them like this when we can simply use proxied methods.
 
 ### Explicit RxJS
 
@@ -62,7 +79,7 @@ invoking operations on the server (such as _load_ in the previous example) is an
 
 portofino-commander is developed and tested against Portofino 6.
 
-While portofino-commander's general approach works with Portofino 5, some of the REST APIs in P5 weren't designed with 
+While portofino-commander's general approach works perfectly well with Portofino 5, some REST APIs in P5 weren't designed with 
 such a client in mind, and require some extra handling to invoke them. For example, some methods require that we 
 explicitly set an Accept header to restrict the response to JSON. In other cases, operation names conflict with 
 portofino-commander's own functions (e.g. "get") and thus we cannot call them using the simplified syntax that we've 

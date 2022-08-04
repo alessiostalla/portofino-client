@@ -129,13 +129,26 @@ export interface Authenticator {
     authenticate(request: Request, portofino: Portofino): Observable<Response>;
 }
 
+export interface UsernamePasswordProvider {
+    get(): Observable<{ username: string, password: string }>;
+}
+
+export class FixedUsernamePasswordProvider implements UsernamePasswordProvider {
+    constructor(public username: string, public password: string) {}
+
+    get(): Observable<{ username: string; password: string }> {
+        return of(this);
+    }
+}
+
 export class UsernamePasswordAuthenticator implements Authenticator {
-    constructor(protected username: string, protected password: string) {}
+    constructor(protected provider: UsernamePasswordProvider) {}
 
     authenticate(request: Request, portofino: Portofino): Observable<Response> {
-        return (<any>portofino.auth).login({ json: { username: this.username, password: this.password } }).pipe(
+        return this.provider.get().pipe(
+            mergeMap(data => (<any>portofino.auth).login({ json: data })),
             mergeMap((response: Response) => from(response.json())),
-            mergeMap((userInfo: any) => {
+            mergeMap(userInfo => {
                 portofino.token = userInfo.jwt;
                 return portofino.http.request(request);
             }));
