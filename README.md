@@ -84,3 +84,15 @@ such a client in mind, and require some extra handling to invoke them. For examp
 explicitly set an Accept header to restrict the response to JSON. In other cases, operation names conflict with 
 portofino-commander's own functions (e.g. "get") and thus we cannot call them using the simplified syntax that we've 
 shown in the Usage section.
+
+## Licensing
+
+Portofino-commander is licensed under the GNU AGPL. In layman terms, if you build any kind of tool or service on top of
+it, you need to release its source code.
+If you'd like to use portofino-commander as a component in a tool or service and require a more business-friendly license,
+please open an issue or contact me directly. I'm open to licensing this to specific organizations so that they can use it,
+but I prefer to have a say in that.
+
+## Donations
+
+You can help me develop and maintain this and other projects by donating to [my Patreon](https://www.patreon.com/alessiostalla).

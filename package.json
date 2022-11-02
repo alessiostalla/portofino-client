@@ -1,8 +1,10 @@
 {
     "name": "portofino-commander",
     "author": "Alessio Stalla",
+    "version": "1.0.0",
+    "license": "AGPLv3",
     "scripts": {
-        "clean": "rimraf dist && rimraf strumenta-ast-v*.tgz",
+        "clean": "rimraf dist && rimraf *.tgz",
         "build": "tsc",
         "lint": "eslint src tests"
     },
