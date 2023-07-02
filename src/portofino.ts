@@ -1,5 +1,7 @@
+import jwt_decode from 'jwt-decode';
 import {catchError, from, map, mergeMap, Observable, of, ReplaySubject, tap} from "rxjs";
 import {HttpClient, RequestInterceptor, ResponseInterceptor} from "./httpClient";
+import {Authenticator, NO_AUTH_HEADER} from "./auth";
 
 interface Operation {
     signature: string;
@@ -123,46 +125,41 @@ export class ResourceAction {
     }
 }
 
-export const NO_AUTH_HEADER = "X-Portofino-No-Authentication";
-
-export interface Authenticator {
-    authenticate(request: Request, portofino: Portofino): Observable<Response>;
+export interface TokenStorage {
+    get(): Observable<string | undefined>;
+    set(value: string): void;
+    unset(): void;
 }
 
-export interface UsernamePasswordProvider {
-    get(): Observable<{ username: string, password: string }>;
-}
+export class SimpleTokenStorage implements TokenStorage {
+    constructor(protected token?: string) {}
 
-export class FixedUsernamePasswordProvider implements UsernamePasswordProvider {
-    constructor(public username: string, public password: string) {}
-
-    get(): Observable<{ username: string; password: string }> {
-        return of(this);
+    get(): Observable<string | undefined> {
+        return of(this.token);
     }
-}
 
-export class UsernamePasswordAuthenticator implements Authenticator {
-    constructor(protected provider: UsernamePasswordProvider) {}
+    set(value: string): void {
+        this.token = value;
+    }
 
-    authenticate(request: Request, portofino: Portofino): Observable<Response> {
-        return this.provider.get().pipe(
-            mergeMap(data => (<any>portofino.auth).login({ json: data })),
-            mergeMap((response: Response) => from(response.json())),
-            mergeMap(userInfo => {
-                portofino.token = userInfo.jwt;
-                return portofino.http.request(request);
-            }));
+    unset(): void {
+        this.token = undefined;
     }
 }
 
 export class Portofino extends ResourceAction {
-    public token: string;
     public auth: Observable<ResourceAction> | ResourceAction;
     public upstairs: Observable<Upstairs> | Upstairs;
 
-    constructor(url: string, protected authenticator?: Authenticator) {
+    public tokenExpirationThresholdMs = 10 * 60 * 1000; //Ten minutes before the token expires, refresh it
+    protected token?: string;
+    protected decodedToken?: any;
+
+    constructor(url: string, protected authenticator?: Authenticator,
+                protected tokenStorage: TokenStorage = new SimpleTokenStorage()) {
         super(url, null, new HttpClient());
         const self = this;
+        tokenStorage.get().subscribe(tk => this.setToken(tk));
         const credentialsInterceptor: RequestInterceptor = {
             intercept(request) {
                 if (self.token && !request.headers.has(NO_AUTH_HEADER)) {
@@ -173,15 +170,48 @@ export class Portofino extends ResourceAction {
         };
         const authInterceptor: ResponseInterceptor = {
             intercept(request, response) {
-                if (response.status === 401 && self.authenticator) {
-                    return self.authenticator.authenticate(request, self);
-                } else {
-                    return of(response);
+                if (self.authenticator) {
+                    if (response.status === 401) {
+                        self.setToken(null);
+                        return self.authenticator.authenticate(request, self.auth).pipe(
+                            mergeMap(userInfo => {
+                                self.setToken(userInfo.jwt);
+                                return self.http.request(request);
+                            }));
+                    } else {
+                        const tokenExpiration = self.decodedToken?.exp;
+                        if(tokenExpiration &&
+                            Date.now() < tokenExpiration * 1000 &&
+                            Date.now() > tokenExpiration * 1000 - self.tokenExpirationThresholdMs) {
+                            self.authenticator.refresh(self.auth).subscribe({
+                                next(refreshResp) {
+                                    if (refreshResp.ok) {
+                                        refreshResp.text().then(token => self.setToken(token));
+                                    }
+                                },
+                                error() {
+                                    // TODO notify error "Failed to refresh access token"
+                                }
+                            });
+                        }
+                    }
                 }
+                return of(response);
             }
         };
         this.http.requestInterceptors = [credentialsInterceptor];
         this.http.responseInterceptors = [authInterceptor];
+    }
+
+    setToken(token: string | null) {
+        this.token = token;
+        if (token) {
+            this.decodedToken = jwt_decode(token);
+            this.tokenStorage.set(token);
+        } else {
+            this.decodedToken = null;
+            this.tokenStorage.unset();
+        }
     }
 
     static connect(url, authenticator: Authenticator) {

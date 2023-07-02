@@ -1,5 +1,6 @@
-import {FixedUsernamePasswordProvider, Portofino, UsernamePasswordAuthenticator} from "./portofino";
+import {Portofino} from "./portofino";
 import {mergeMap} from "rxjs";
+import {FixedUsernamePasswordProvider, UsernamePasswordAuthenticator} from "./auth";
 
 (<any>window).Portofino = Portofino;
 (<any>window).UsernamePasswordAuthenticator = UsernamePasswordAuthenticator;
