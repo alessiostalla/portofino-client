@@ -1,7 +1,9 @@
 import jwt_decode from 'jwt-decode';
-import {catchError, from, map, mergeMap, Observable, of, ReplaySubject, tap} from "rxjs";
+import {catchError, from, map, mergeMap, Observable, of,  ReplaySubject, Subject, tap} from "rxjs";
 import {HttpClient, RequestInterceptor, ResponseInterceptor} from "./httpClient";
 import {Authenticator, NO_AUTH_HEADER} from "./auth";
+import i18next from "i18next";
+import {initDefaultI18n} from "./i18n";
 
 interface Operation {
     signature: string;
@@ -147,9 +149,23 @@ export class SimpleTokenStorage implements TokenStorage {
     }
 }
 
+export enum Severity {
+    INFO = 100, WARNING = 200, ERROR = 300
+}
+
+export interface Notification {
+    severity: Severity;
+    message: string;
+}
+
+export interface ConnectOptions {
+    setupDefaultI18n?: boolean
+}
+
 export class Portofino extends ResourceAction {
     public auth: Observable<ResourceAction> | ResourceAction;
     public upstairs: Observable<Upstairs> | Upstairs;
+    public readonly notifications = new Subject<Notification>();
 
     public tokenExpirationThresholdMs = 10 * 60 * 1000; //Ten minutes before the token expires, refresh it
     protected token?: string;
@@ -190,7 +206,10 @@ export class Portofino extends ResourceAction {
                                     }
                                 },
                                 error() {
-                                    // TODO notify error "Failed to refresh access token"
+                                    self.notifications.next({
+                                        severity: Severity.ERROR,
+                                        message: i18next.t('portofino.authcz.error.failedToRefreshToken')
+                                    });
                                 }
                             });
                         }
@@ -214,7 +233,14 @@ export class Portofino extends ResourceAction {
         }
     }
 
-    static connect(url, authenticator: Authenticator) {
+    static connect(url: string, authenticator: Authenticator, options: ConnectOptions = {}) {
+        options = {...{setupDefaultI18n: true}, ...options};
+        if (!url) {
+            throw new Error("URL is required");
+        }
+        if (options.setupDefaultI18n) {
+            initDefaultI18n("en").catch(reason => console.error("Could not init default I18n", reason));
+        }
         const portofino = new Portofino(url, authenticator);
         return portofino.proxy(portofino.refresh());
     }

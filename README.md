@@ -1,8 +1,14 @@
 # portofino-commander
 
-A JavaScript library to inspect and modify a [Portofino](https://github.com/ManyDesigns/Portofino) service.
+A JavaScript library to query, inspect and modify a [Portofino](https://github.com/ManyDesigns/Portofino) application.
 
-Its only dependencies are RxJS and the fetch API. Therefore, it can work both on the browser and in Node.
+It has few dependencies:
+- The standard `fetch` API
+- RxJS
+- jwt-decode
+- i18next
+
+These all work both on the browser and in Node, therefore Portofino-commander runs in both environments.
 
 ## Usage
 
@@ -79,11 +85,30 @@ invoking operations on the server (such as _load_ in the previous example) is an
 
 portofino-commander is developed and tested against Portofino 6.
 
-While portofino-commander's general approach works perfectly well with Portofino 5, some REST APIs in P5 weren't designed with 
-such a client in mind, and require some extra handling to invoke them. For example, some methods require that we 
-explicitly set an Accept header to restrict the response to JSON. In other cases, operation names conflict with 
-portofino-commander's own functions (e.g. "get") and thus we cannot call them using the simplified syntax that we've 
-shown in the Usage section.
+While portofino-commander's general approach works perfectly well with Portofino 5, some REST APIs in P5 weren't 
+designed with such a client in mind, and require some extra handling to invoke them. 
+For example, some methods require that we explicitly set an Accept header to restrict the response to JSON.
+In other cases, operation names conflict with portofino-commander's own functions (e.g. "get"), thus we cannot call
+them using the simplified syntax that we've shown in the Usage section – we have to resort to the more verbose RxJS API.
+
+## Authentication
+
+Portofino-commander handles JWT-based authentication for you, including refreshing the token when it's about to expire.
+
+We can easily write a `UsernamePasswordProvider` that asks the user for their credentials using the UI components
+of our choice. Portofino-commander is completely UI agnostic (but its use of RxJS may integrate well with UI frameworks
+that use RxJS, such as Angular).
+
+## I18n
+
+Portofino-commander uses I18next to translate error messages. It only comes with English translations and doesn't do 
+any language detection on its own. It's easy to provide strings in other languages and plug in a language detector.
+We can just follow I18next's documentation, and ensure that Portofino doesn't set up its default I18n configuration:
+
+```javascript
+i18next.init(...);
+Portofino.connect(url, authenticator, { setupDefaultI18n: false });
+```
 
 ## Licensing
 
