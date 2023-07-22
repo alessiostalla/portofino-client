@@ -1,6 +1,6 @@
 import i18next from "i18next";
 
-export const loadClassAccessor = (c: ClassAccessor) => {
+export const loadObjectAccessor = (c: ObjectAccessor) => {
   if(!c) {
     return c;
   }
@@ -8,7 +8,7 @@ export const loadClassAccessor = (c: ClassAccessor) => {
     c.initSelectionProviders();
     return c;
   } else {
-    return ClassAccessor.create(c);
+    return ObjectAccessor.create(c);
   }
 };
 
@@ -17,7 +17,7 @@ export const DATE_TYPE = "date";
 export const NUMBER_TYPE = "number";
 export const STRING_TYPE = "string";
 
-export class ClassAccessor {
+export class ObjectAccessor {
   name: string;
   properties: Property[] = [];
   keyProperties: string[] = [];
@@ -34,7 +34,7 @@ export class ClassAccessor {
     });
   }
 
-  static getProperty(self: ClassAccessor, name: string) {
+  static getProperty(self: ObjectAccessor, name: string) {
     for(const p in self.properties) {
       let property = self.properties[p];
       if(property.name == name) {
@@ -43,8 +43,8 @@ export class ClassAccessor {
     }
   }
 
-  static create(values: ClassAccessor | any): ClassAccessor {
-    const ca = Object.assign(new ClassAccessor(), values);
+  static create(values: ObjectAccessor | any): ObjectAccessor {
+    const ca = Object.assign(new ObjectAccessor(), values);
     ca.initSelectionProviders();
     return ca;
   }
@@ -52,8 +52,8 @@ export class ClassAccessor {
   static forObject(object: any, options: {
     name?: string, ownProperties?: boolean,
     properties: { [name: string]: Property | any }
-  } = { properties: {} }): ClassAccessor {
-    let accessor = new ClassAccessor();
+  } = { properties: {} }): ObjectAccessor {
+    let accessor = new ObjectAccessor();
     accessor.name = options.name;
     for(let p in object) {
       if(options.ownProperties && !object.hasOwnProperty(p)) {
@@ -88,13 +88,16 @@ export class ClassAccessor {
 
 export class Property {
   name: string;
-  type = STRING_TYPE;
+  /**
+   * The property's portofinoType is the native Portofino type of this property. See `type` for the JavaScript type.
+   */
+  portofinoType = STRING_TYPE;
   annotations: Annotation[] = [];
   modifiers: string[] = [];
   label: string;
   key: boolean;
-  get kind() {
-    return deriveKind(this);
+  get type() {
+    return deriveType(this);
   }
 
   editable: boolean;
@@ -104,8 +107,8 @@ export class Property {
     return Object.assign(new Property(), values)
   }
 
-  static get(owner: ClassAccessor, name: string) {
-    return ClassAccessor.getProperty(owner, name);
+  static get(owner: ObjectAccessor, name: string) {
+    return ObjectAccessor.getProperty(owner, name);
   }
 
   required(value: boolean = true): Property {
@@ -162,24 +165,24 @@ export function getAnnotation(property: Property, type: string): Annotation {
 }
 
 export function isBooleanProperty(property: Property) {
-  return property.type == 'java.lang.Boolean' || property.type == BOOLEAN_TYPE
+  return property.portofinoType == 'java.lang.Boolean' || property.portofinoType == BOOLEAN_TYPE
 }
 
 export function isStringProperty(property: Property) {
-  return property.type == 'java.lang.String' || property.type == STRING_TYPE
+  return property.portofinoType == 'java.lang.String' || property.portofinoType == STRING_TYPE
 }
 
 export function isNumericProperty(property: Property) {
-  return property.type == 'java.lang.Long' || property.type == 'java.lang.Integer' ||
-         property.type == 'java.lang.Float' || property.type == 'java.lang.Double' ||
-         property.type == 'java.math.BigInteger' || property.type == 'java.math.BigDecimal' ||
-         property.type == NUMBER_TYPE
+  return property.portofinoType == 'java.lang.Long' || property.portofinoType == 'java.lang.Integer' ||
+         property.portofinoType == 'java.lang.Float' || property.portofinoType == 'java.lang.Double' ||
+         property.portofinoType == 'java.math.BigInteger' || property.portofinoType == 'java.math.BigDecimal' ||
+         property.portofinoType == NUMBER_TYPE
 }
 
 export function isDateProperty(property: Property) {
-  return property.type == 'java.util.Date' ||
-         property.type == 'java.sql.Date' || property.type == 'java.sql.Timestamp' ||
-         property.type == DATE_TYPE;
+  return property.portofinoType == 'java.util.Date' ||
+         property.portofinoType == 'java.sql.Date' || property.portofinoType == 'java.sql.Timestamp' ||
+         property.portofinoType == DATE_TYPE;
 }
 
 export function isEnabled(property: Property) {
@@ -235,7 +238,7 @@ export function isBlob(property: Property) {
          getAnnotation(property, "com.manydesigns.elements.annotations.DatabaseBlob");
 }
 
-export function deriveKind(property: Property) {
+export function deriveType(property: Property) {
   if(isBlob(property)) {
     return "blob";
   }
@@ -251,7 +254,7 @@ export function deriveKind(property: Property) {
   if(isBooleanProperty(property)) {
     return BOOLEAN_TYPE;
   }
-  throw `${property.name}: unsupported property type ${property.type}`
+  throw `${property.name}: unsupported property type ${property.portofinoType}`
 }
 
 export interface Validator {
@@ -266,7 +269,7 @@ export const VALIDATION_ERROR_TOO_SMALL = "portofino.forms.validation.tooSmall";
 export function getValidators(property: Property): Validator[] {
   let validators: Validator[] = [];
   //Required on checkboxes means that they must be checked, which is not what we want
-  if (isRequired(property) && property.kind != BOOLEAN_TYPE) {
+  if (isRequired(property) && property.type != BOOLEAN_TYPE) {
     validators.push({
       validationError(value?) {
         if (value === undefined || value === null || value === "") {
@@ -310,4 +313,66 @@ export function getValidators(property: Property): Validator[] {
     });
   }
   return validators;
+}
+
+export abstract class ObjectAdapter<T> {
+  constructor(protected converter: TypeConverter = new TypeConverter()) {}
+
+  get(obj: T, property: Property): any | undefined {
+    return this.convert(this.rawGet(obj, property), property);
+  }
+  set(obj: T, property: Property, value?: any) {
+    this.rawSet(obj, property, this.convert(value, property));
+  }
+
+  protected abstract rawGet(obj: T, property: Property): any | undefined;
+  protected abstract rawSet(obj: T, property: Property, value?: any);
+
+  protected convert(value: any, property: Property): any {
+    return this.converter.convert(value, typeof value, property.type)
+  }
+}
+
+export class ConversionError extends Error {
+  constructor(public readonly value: any, public readonly fromType: string, public readonly toType: string) {
+    super(`Cannot convert ${value} from ${fromType} to ${toType}`);
+  }
+}
+
+export class TypeConverter {
+  protected converters: Map<string, (x: any) => any> = new Map<string, (x: any) => any>();
+
+  constructor() {
+    this.converters.set("string->number", (x: string) => {
+      const number = parseFloat(x);
+      if (isNaN(number)) {
+        throw new ConversionError(x, "string", "number");
+      } else {
+        return number;
+      }
+    });
+    this.converters.set("number->string", (x: number) => {
+      return "" + x;
+    });
+  }
+
+  convert(value: any, from: string, to: string): any | undefined {
+    if (value === undefined) {
+      return undefined;
+    }
+    const key = `${from}->${to}`;
+    const fn = this.converters.get(key) || (x => x);
+    return fn(value);
+  }
+}
+
+export class JSONAdapter extends ObjectAdapter<any> {
+
+  rawGet(obj: any, property: Property): any {
+    return obj[property.name], property;
+  }
+
+  rawSet(obj: any, property: Property, value?: any) {
+    obj[property.name] = value;
+  }
 }

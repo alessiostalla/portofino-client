@@ -1,4 +1,4 @@
 import "./auth";
 import "./portofino";
-import "./classAccessor";
+import "./objectAccessor";
 import "./forms/forms";
