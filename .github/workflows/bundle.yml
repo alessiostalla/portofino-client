@@ -1,0 +1,23 @@
+name: Bundle the library for the browser with Webpack
+
+on: [workflow_dispatch]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Node
+        uses: actions/setup-node@v3
+      - name: Build, Lint and Bundle
+        run: |
+          yarn install --network-timeout 100000
+          yarn lint
+          yarn build
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: portofino-commander-bundle
+          path: public/static/bundle

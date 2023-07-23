@@ -1,4 +1,7 @@
 const path = require("path");
+const fs = require("fs");
+
+const version = JSON.parse(fs.readFileSync(path.resolve(__dirname, "./package.json")).toString()).version;
 
 module.exports = {
     mode: "production",
@@ -16,7 +19,7 @@ module.exports = {
         extensions: [ ".ts", ".js"],
     },
     output: {
-        filename: "portofino-commander.js",
+        filename: `portofino-commander-${version}-bundle.js`,
         path: path.resolve(__dirname, "public", "static", "bundle"),
     },
 };

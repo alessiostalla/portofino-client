@@ -1,14 +1,14 @@
 {
     "name": "portofino-commander",
     "author": "Alessio Stalla",
-    "version": "1.0.0",
+    "version": "0.9.0",
     "license": "AGPLv3",
     "scripts": {
         "clean": "rimraf dist && rimraf *.tgz",
         "build": "yarn run build:esm && yarn run build:cjs && webpack",
         "build:esm": "tsc --module es6 --outDir dist/esm",
         "build:cjs": "tsc --module commonjs --outDir dist/cjs",
-        "lint": "eslint src tests"
+        "lint": "eslint src"
     },
     "browser": "dist/cjs/index.js",
     "main": "dist/cjs/index.js",

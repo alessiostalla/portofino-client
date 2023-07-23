@@ -1,5 +1,3 @@
-import i18next from "i18next";
-
 export const loadObjectAccessor = (c: ObjectAccessor) => {
   if(!c) {
     return c;
@@ -27,7 +25,7 @@ export class ObjectAccessor {
       const select = getAnnotation(p, "com.manydesigns.elements.annotations.Select");
       if (select) {
         p.selectionProvider = Object.assign(new SelectionProvider(), {displayMode: select.properties.displayMode});
-        for (let i in select.properties.values) {
+        for (const i in select.properties.values) {
           p.selectionProvider.options.push({v: select.properties.values[i], l: select.properties.labels[i], s: false});
         }
       }
@@ -36,7 +34,7 @@ export class ObjectAccessor {
 
   static getProperty(self: ObjectAccessor, name: string) {
     for(const p in self.properties) {
-      let property = self.properties[p];
+      const property = self.properties[p];
       if(property.name == name) {
         return property
       }
@@ -53,10 +51,10 @@ export class ObjectAccessor {
     name?: string, ownProperties?: boolean,
     properties: { [name: string]: Property | any }
   } = { properties: {} }): ObjectAccessor {
-    let accessor = new ObjectAccessor();
+    const accessor = new ObjectAccessor();
     accessor.name = options.name;
-    for(let p in object) {
-      if(options.ownProperties && !object.hasOwnProperty(p)) {
+    for(const p in object) {
+      if(options.ownProperties && !Object.prototype.hasOwnProperty.call(object, p)) {
         continue;
       }
       let value = object[p];
@@ -64,12 +62,12 @@ export class ObjectAccessor {
         value = value.value; //Handle objects returned by Elements that have value and displayValue
       }
       let property;
-      let defaultValues: any = { name: p, label: p.charAt(0).toUpperCase() + p.slice(1) };
+      const defaultValues: any = { name: p, label: p.charAt(0).toUpperCase() + p.slice(1) };
       if(typeof(value) === NUMBER_TYPE) {
         defaultValues.type = NUMBER_TYPE;
       }
       //We don't handle arrays and objects for now
-      if(options.properties.hasOwnProperty(p)) {
+      if(Object.prototype.hasOwnProperty.call(options.properties, p)) {
         if(options.properties[p]) {
           property = Property.create({ ...defaultValues, ...options.properties[p] });
         }
@@ -111,7 +109,7 @@ export class Property {
     return ObjectAccessor.getProperty(owner, name);
   }
 
-  required(value: boolean = true): Property {
+  required(value = true): Property {
     return this.withAnnotation(ANNOTATION_REQUIRED, { value: value });
   }
 
@@ -143,12 +141,12 @@ export class Annotation {
 
 export class SelectionProvider {
   name?: string;
-  index: number = 0;
-  displayMode: string = "DROPDOWN";
+  index = 0;
+  displayMode = "DROPDOWN";
   url?: string;
   nextProperty?: string;
-  updateDependentOptions: () => void = () => {};
-  loadOptions: (value?: string) => void = () => {};
+  // updateDependentOptions: () => void = () => {};
+  // loadOptions: (value?: string) => void = () => {};
   options: SelectionOption[] = [];
 }
 
@@ -267,7 +265,7 @@ export const VALIDATION_ERROR_TOO_BIG = "portofino.forms.validation.tooBig";
 export const VALIDATION_ERROR_TOO_SMALL = "portofino.forms.validation.tooSmall";
 
 export function getValidators(property: Property): Validator[] {
-  let validators: Validator[] = [];
+  const validators: Validator[] = [];
   //Required on checkboxes means that they must be checked, which is not what we want
   if (isRequired(property) && property.type != BOOLEAN_TYPE) {
     validators.push({
