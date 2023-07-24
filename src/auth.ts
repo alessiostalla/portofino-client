@@ -16,7 +16,9 @@ export class UsernamePasswordAuthenticator implements Authenticator {
 
     authenticate(request: Request, auth: any): Observable<{ jwt: string }> {
         return this.provider.get().pipe(
-            mergeMap(data => auth.login({ json: data })),
+            mergeMap(data => auth.login(
+                { json: data, headers: { [NO_AUTH_HEADER]: "No auth" } }
+            )),
             mergeMap((response: Response) => from(response.json())));
     }
 

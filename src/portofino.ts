@@ -53,7 +53,19 @@ export class ResourceAction {
                     } else if(p in subject || p === "operator" || p === "source") { // RxJS members
                         return subject[p];
                     } else {
-                        return (...args: any[]) => subject.pipe(mergeMap(r => r[p].apply(r, args)));
+                        return (...args: any[]) => subject.pipe(mergeMap(r => {
+                            if (r && r[p]) {
+                                return r[p].apply(r, args);
+                            } else {
+                                let descr;
+                                if (r instanceof ResourceAction) {
+                                    descr = "resource " + r.url;
+                                } else {
+                                    descr = String(r);
+                                }
+                                throw new Error(`Operation ${String(p)} is not available on ${descr}`);
+                            }
+                        }));
                     }
                 }
             });
@@ -100,7 +112,7 @@ export class ResourceAction {
             path = "";
         }
         const operationFunction = (...args) => {
-            let config = {};
+            let config: RequestInit = {};
             if (args.length == pathParams.length + 1) {
                 config = args[pathParams.length];
                 args = args.slice(0, pathParams.length);
@@ -110,7 +122,9 @@ export class ResourceAction {
                     path = path.replace(pathParams[i], args[i]);
                 }
             } else {
-                throw "Too many path params, expected " + pathParams.length + ", got " + args.length;
+                throw new Error(
+                    `Too many path params for ${this.url}, ` +
+                    `expected ${pathParams.length}, got ${args.length}: ${args}`);
             }
             return this.http[method](this.url + "/" + path, config);
         }
@@ -180,6 +194,8 @@ export class Portofino extends ResourceAction {
             intercept(request) {
                 if (self.token && !request.headers.has(NO_AUTH_HEADER)) {
                     request.headers.set("Authorization", "Bearer " + self.token);
+                } else {
+                    request.headers.delete(NO_AUTH_HEADER);
                 }
                 return request;
             }
@@ -267,7 +283,10 @@ export class Portofino extends ResourceAction {
             tap(() => {
                 self.auth = self.get(":auth");
                 self.upstairs = self.proxy(self.get("portofino-upstairs", Upstairs, false)
-                    .pipe(catchError(() => of(null))));
+                    .pipe(catchError((e) => {
+                        console.log("Upstairs not available", e);
+                        return of(null);
+                    })));
             }));
     }
 

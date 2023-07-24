@@ -52,21 +52,29 @@ Then, we can make requests to the server. Every resource and request is an RxJS 
 These are proxied so that we don't have to explicitly pipe or subscribe to chain them. Some examples:
 
 ```javascript
-const observer = { next(x) { console.log(x) }};
+const observer = {
+    next(response) { response.json().then(json => console.log(json)); },
+    error(e) { alert("Uh-oh!"); console.log(e); }
+};
 // Print info about the application
 portofino.upstairs.getInfo().subscribe(observer);
-// CRUD, list
-portofino.get("projects").load().subscribe(observer);
+// CRUD
+const projectsCrud = portofino.get("projects");
+// Note: on Portofino 5, we have replace `.load()` with `.op_get()` (see below)
+// List
+projectsCrud.load().subscribe(observer);
 // CRUD, single object
-portofino.get("projects/PRJ_1").load().subscribe(observer);
+projectsCrud.get("PRJ_1").load().subscribe(observer);
 // Alternate syntax, same effect as above
-portofino.get("projects").get("PRJ_1").load().subscribe(observer);
+portofino.get("projects/PRJ_1").load().subscribe(observer);
 // Upstairs methods
 portofino.upstairs.get("database/tables")
     .getTablesInSchema("db", "schema")
     .subscribe(observer);
 // Terminate the session
 portofino.logout().subscribe();
+// Note how calls to `subscribe` are needed 
+// to actually perform the HTTP requests to the backend.
 ```
 
 Operations such as _load()_ above for CRUD, or _getTablesInSchema(db, schema)_, are automatically discovered by querying the Portofino service.
@@ -114,10 +122,11 @@ invoking operations on the server (such as _load_ in the previous example) is an
 portofino-commander is developed and tested against Portofino 6.
 
 While portofino-commander's general approach works perfectly well with Portofino 5, some REST APIs in P5 weren't 
-designed with such a client in mind, and require some extra handling to invoke them. 
+designed with such a client in mind, and require some extra handling to invoke them.
 For example, some methods require that we explicitly set an Accept header to restrict the response to JSON.
-In other cases, operation names conflict with portofino-commander's own functions (e.g. "get"), thus we cannot call
-them using the simplified syntax that we've shown in the Usage section – we have to resort to the more verbose RxJS API.
+In other cases, operation names conflict with portofino-commander's own functions (e.g. "get"). This is the case of
+the CRUD's load operation. In Portofino 5, instead of using `crud.load()`, we'll have to write `crud.op_get()` which
+is a bit uglier to read.
 
 ## Authentication
 
