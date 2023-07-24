@@ -1,3 +1,5 @@
+[![npm version](https://badge.fury.io/js/portofino-commander.svg)](https://badge.fury.io/js/portofino-commander)
+
 # portofino-commander
 
 A JavaScript library to query, inspect and modify a [Portofino](https://github.com/ManyDesigns/Portofino) application.
@@ -9,6 +11,32 @@ It has few dependencies:
 - i18next
 
 These all work both on the browser and in Node, therefore Portofino-commander runs in both environments.
+
+## Installation
+
+portofino-commander is available from the NPM Registry so we can use tools like NPM or Yarn to install it:
+
+```
+npm install --save portofino-commander
+```
+
+or
+
+```
+yarn add portofino-commander
+```
+
+For convenience, we also provide a minified bundle of Portofino-commander and its dependencies for use in the browser,
+so you can include it like so:
+
+```html
+<script src="./static/bundle/portofino-commander-0.9.0-bundle.js" charset="UTF-8" defer></script>
+```
+
+You can find the bundle in the [Releases page](https://github.com/alessiostalla/portofino-commander/releases).
+
+Such a deployment option is not recommended except for quick testing or very simple pages/applications.
+In general, we recommend using proper build tools.  
 
 ## Usage
 
