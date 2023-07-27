@@ -40,49 +40,137 @@ In general, we recommend using proper build tools.
 
 ## Usage
 
+Portofino-commander tries to provide intuitive APIs on top of a relatively complex implementation. Let's see how to use it.
+
+### Connection to a Portofino Service
+
 We start by connecting to a running Portofino service:
 
 ```javascript
 const portofino = Portofino.connect(
-    "http://localhost:8080/demo-tt/api", 
+    "http://localhost:8080/", 
     new UsernamePasswordAuthenticator(
         new FixedUsernamePasswordProvider("admin", "admin")));
 ```
-Then, we can make requests to the server. Every resource and request is an RxJS Observable. 
-These are proxied so that we don't have to explicitly pipe or subscribe to chain them. Some examples:
+
+The above applies to Portofino 5 and 6 services (based on Spring Boot).
+Of course, a service could have a non-standard configuration, and its address could be different.
+
+If unsure, check the log messages emitted while the service starts up and look for lines like the following:
+
+```
+PortofinoJerseyAutoConfiguration : API path: /abc/
+```
+
+and then:
+
+```
+TomcatWebServer  : Tomcat started on port(s): 12345 (http) with context path 'xyz'
+```
+
+These tell us that the root of the Portofino REST APIs is `http://localhost:12345/xyz/abc`. Normally, though, the API 
+path is `/`, the context path is the empty string, and the port is 8080, so we obtain the URL in the example, 
+`http://localhost:8080/`.
+
+### Connection to a Portofino 5 Web Application
+
+If connecting to a Portofino 5 application deployed as a .war file, instead, the URL will be different, and it will 
+typically look like `http://localhost:8080/demo-tt/api`.
+
+`demo-tt` is the context path (in layman terms, a portion of the URL identifying the application). It could be missing
+if the application is deployed at the root (e.g., on Tomcat, if the .war file is named ROOT.war).
+
+`/api` is the REST API root, because if we access `http://localhost:8080/demo-tt` we'll receive the HTML of the 
+application's home page. This path can be customized in the application's `web.xml` file, but `/api` is the
+default and it rarely gets changed.
+
+### Making Requests
+
+Once we've got a connection, we can make requests to the server. We do this conceptually in two steps:
+- First, we obtain a _resource_ (e.g. a CRUD `ResourceAction`) – this is a _class_ of the application;
+- Then, we invoke an _operation_ on the resource (e.g. "save" on an CRUD) – this is a _method_ of the resource.
+
+Portofino-commander implements access to a resource and invocation of an operation with an RxJS Observable. 
+These are proxied so that we don't have to use the RxJS APIs (such as `pipe` or `subscribe`) to chain them.
+Some examples follow.
+
+Let's first define an _observer_ that will just print the result of an operation to the console:
 
 ```javascript
 const observer = {
     next(response) { response.json().then(json => console.log(json)); },
     error(e) { alert("Uh-oh!"); console.log(e); }
 };
+```
+
+Then, we can invoke an operation like so:
+
+```javascript
 // Print info about the application
 portofino.upstairs.getInfo().subscribe(observer);
-// CRUD
+```
+
+`portofino.upstairs` is a special resource that is pre-filled by Portofino-commander if it's available on the service.
+
+We can access other resources using the `get` method:
+
+```javascript
 const projectsCrud = portofino.get("projects");
-// Note: on Portofino 5, we have replace `.load()` with `.op_get()` (see below)
+```
+
+Then, we can invoke operations on it:
+
+```javascript
 // List
 projectsCrud.load().subscribe(observer);
 // CRUD, single object
-projectsCrud.get("PRJ_1").load().subscribe(observer);
-// Alternate syntax, same effect as above
+projectsCrud.load("PRJ_1").subscribe(observer);
+```
+
+We can also access sub-resources. In the following, the effect is the same as the above (loading an object from a CRUD
+resource):
+
+```javascript
+const project1 = projectsCrud.get("PRJ_1");
+project1.load().subscribe(observer);
+```
+
+`get` can also access a subpath:
+
+```javascript
 portofino.get("projects/PRJ_1").load().subscribe(observer);
-// Upstairs methods
+```
+
+A more involved example, invoking an upstairs operation:
+
+```javascript
 portofino.upstairs.get("database/tables")
     .getTablesInSchema("db", "schema")
     .subscribe(observer);
-// Terminate the session
-portofino.logout().subscribe();
-// Note how calls to `subscribe` are needed 
-// to actually perform the HTTP requests to the backend.
 ```
 
-Operations such as _load()_ above for CRUD, or _getTablesInSchema(db, schema)_, are automatically discovered by querying the Portofino service.
-That's why `resource.get(subresource)` returns an _Observable_.
+**Note:** on Portofino 5, we have to replace `.load()` with `.op_get()` (see below).
+
+When we're done, we should terminate the session:
+
+```javascript
+portofino.logout().subscribe();
+```
+
+Note how calls to `subscribe` are needed to actually perform the HTTP requests to the backend. This is because RxJS is
+"lazy" and doesn't run any code until someone looks at the results.
+
+Portofino-commander automatically discovers operations such as _load()_ above for CRUD, or _getTablesInSchema(db, schema)_,
+by querying the Portofino service. That's why `resource.get(subresource)` returns an _Observable_. The resource is only
+"ready" after the service has responded with the list of available operations for that resource.
+
+Note that the operations that are available also depend on the user's identity. Some users may not have the privileges
+to invoke a certain operation, in that case, it won't be available in the client.
 
 ### Introspection
 
-To know the available operations on a resource and their signature, access its _operations_ property:
+To know which operations are available on a resource and what parameters they accept, we access the _operations_ 
+property of the resource:
 
 ```javascript
 portofino.get("projects").operations.subscribe(observer);
@@ -100,7 +188,23 @@ portofino.get("projects").operations.pipe(
 ).subscribe(observer);
 ```
 
-Usually there's no reason to invoke them like this when we can simply use proxied methods.
+Usually there's no reason to invoke them like this when we can simply use proxied methods as shown in the previous 
+section. In fact, the above code is equivalent to:
+
+```javascript
+portofino.get("projects").load().subscribe(observer);
+```
+
+### Passing Parameters
+
+Some operations may accept parameters. These can be:
+
+- **Path parameters**. We pass them as arguments of the operation, e.g. `someResource.someOperation("pathParam1", "pathParam2")`
+- **Other parameters** such as query string parameters, headers, or the HTTP request body. We pass these in an object 
+  as the **last** argument of the operation, e.g. `someCrud.save("id", { json: { ... } })`. This object conforms to the
+  `options` parameter of the [standard `fetch` API](https://developer.mozilla.org/en-US/docs/Web/API/fetch) with a couple
+  of extra properties for convenience, such as `json` shown earlier that automatically converts a JSON body to a string
+  and sets the right `Content-Type` header.
 
 ### Explicit RxJS
 

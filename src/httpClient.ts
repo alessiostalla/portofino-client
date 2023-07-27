@@ -12,29 +12,33 @@ export interface ResponseInterceptor {
 
 const CONTENT_TYPE_HEADER = 'Content-Type';
 
+export interface ExtendedRequestInit extends RequestInit {
+    json?: any;
+}
+
 export class HttpClient {
     constructor(
         public requestInterceptors: RequestInterceptor[] = [],
         public responseInterceptors: ResponseInterceptor[] = []) {
     }
 
-    delete(url, config: RequestInit & any = {}) {
+    delete(url, config: ExtendedRequestInit = {}) {
         return this.request(new Request(url, {...config, method: "DELETE", body: null}));
     }
 
-    get(url, config: RequestInit & any = {}) {
+    get(url, config: ExtendedRequestInit = {}) {
         return this.request(new Request(url, {...config, method: "GET", body: null}));
     }
 
-    post(url, config: RequestInit & any = {}) {
+    post(url, config: ExtendedRequestInit = {}) {
         return this.request(this.requestWithBody(url, "POST", config));
     }
 
-    put(url, config: RequestInit & any = {}) {
+    put(url, config: ExtendedRequestInit = {}) {
         return this.request(this.requestWithBody(url, "PUT", config));
     }
 
-    protected requestWithBody(url, method: string, requestInfo: RequestInit & any) {
+    protected requestWithBody(url, method: string, requestInfo: ExtendedRequestInit) {
         const init: RequestInit = {...requestInfo, method: method};
         if (requestInfo.json) {
             init.body = JSON.stringify(requestInfo.json);
