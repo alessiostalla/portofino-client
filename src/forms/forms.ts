@@ -1,29 +1,63 @@
-import {ObjectAdapter, Property, TypeConverter} from "../objectAccessor";
+import {getValidators, ObjectAccessor, ObjectAdapter, Property, TypeConverter, Validator} from "../objectAccessor";
 
 export class FormAdapter extends ObjectAdapter<HTMLFormElement> {
     constructor(
+        form: HTMLFormElement,
         protected nameMapper: (n: string) => string = n => n,
         converter: TypeConverter = new TypeConverter()) {
-        super(converter);
+        super(form, converter);
     }
 
-    // TODO setup method to create/integrate form for accessor
-
-    rawGet(obj: HTMLFormElement, property: Property): any {
-        const element = this.getFormElement(obj, property);
+    rawGet(property: Property): any {
+        const element = this.getFormElement(property);
         if (element instanceof HTMLInputElement) {
             return element.value;
         }
     }
 
-    rawSet(obj: HTMLFormElement, property: Property, value: any) {
-        const element = this.getFormElement(obj, property);
+    rawSet(property: Property, value: any) {
+        const element = this.getFormElement(property);
         if (element instanceof HTMLInputElement) {
             element.value = value?.toString();
         }
     }
 
-    protected getFormElement(obj: HTMLFormElement, property: Property) {
-        return obj.querySelector(`[name=${this.nameMapper(property.name)}]`);
+    setup(accessor: ObjectAccessor, addMissingFields = true) {
+        accessor.properties.forEach(p => {
+            let element = this.getFormElement(p);
+            if (!element && addMissingFields) {
+                throw "TODO add missing element " + p.name + " not supported";
+            }
+            if (element instanceof HTMLInputElement) {
+                const validators = getValidators(p);
+                if (validators) {
+                    this.setupValidators(p, element, validators);
+                }
+            }
+        });
+    }
+
+    protected setupValidators(property: Property, element: HTMLInputElement, validators: Validator[]) {
+        const listener = element.onchange;
+        element.onchange = (ev: Event) => {
+            element.dataset["validation-errors"] = "";
+            validators.forEach(validator => {
+                const error = validator.validationError(this.get(property));
+                if (error) {
+                    if (element.dataset["validation-errors"]) {
+                        element.dataset["validation-errors"] += "," + error;
+                    } else {
+                        element.dataset["validation-errors"] = error;
+                    }
+                }
+            });
+            if (listener) {
+                return listener.call(element, ev);
+            }
+        };
+    }
+
+    protected getFormElement(property: Property) {
+        return this.object.querySelector(`[name=${this.nameMapper(property.name)}]`);
     }
 }

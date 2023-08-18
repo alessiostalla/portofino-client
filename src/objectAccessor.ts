@@ -314,20 +314,26 @@ export function getValidators(property: Property): Validator[] {
 }
 
 export abstract class ObjectAdapter<T> {
-  constructor(protected converter: TypeConverter = new TypeConverter()) {}
+  constructor(protected object: T, protected converter: TypeConverter = new TypeConverter()) {}
 
-  get(obj: T, property: Property): any | undefined {
-    return this.convert(this.rawGet(obj, property), property);
+  get(property: Property): any | undefined {
+    return this.convert(this.rawGet(property), property);
   }
-  set(obj: T, property: Property, value?: any) {
-    this.rawSet(obj, property, this.convert(value, property));
+  set(property: Property, value?: any) {
+    this.rawSet(property, this.convert(value, property));
   }
 
-  protected abstract rawGet(obj: T, property: Property): any | undefined;
-  protected abstract rawSet(obj: T, property: Property, value?: any);
+  protected abstract rawGet(property: Property): any | undefined;
+  protected abstract rawSet(property: Property, value?: any);
 
   protected convert(value: any, property: Property): any {
     return this.converter.convert(value, typeof value, property.type)
+  }
+
+  static copy(accessor: ObjectAccessor, source: ObjectAdapter<any>, target: ObjectAdapter<any>) {
+    accessor.properties.forEach(p => {
+      target.set(source.get(p));
+    });
   }
 }
 
@@ -366,11 +372,11 @@ export class TypeConverter {
 
 export class JSONAdapter extends ObjectAdapter<any> {
 
-  rawGet(obj: any, property: Property): any {
-    return obj[property.name], property;
+  rawGet(property: Property): any {
+    return this.object[property.name];
   }
 
-  rawSet(obj: any, property: Property, value?: any) {
-    obj[property.name] = value;
+  rawSet(property: Property, value?: any) {
+    this.object[property.name] = value;
   }
 }

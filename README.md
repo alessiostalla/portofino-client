@@ -30,7 +30,7 @@ For convenience, we also provide a minified bundle of Portofino-commander and it
 so you can include it like so:
 
 ```html
-<script src="./static/bundle/portofino-commander-0.9.0-bundle.js" charset="UTF-8" defer></script>
+<script src="./static/bundle/portofino-commander-0.9.1-bundle.js" charset="UTF-8" defer></script>
 ```
 
 You can find the bundle in the [Releases page](https://github.com/alessiostalla/portofino-commander/releases).
@@ -250,6 +250,10 @@ We can just follow I18next's documentation, and ensure that Portofino doesn't se
 i18next.init(...);
 Portofino.connect(url, authenticator, { setupDefaultI18n: false });
 ```
+
+## Forms
+
+Work in progress.
 
 ## Licensing
 
