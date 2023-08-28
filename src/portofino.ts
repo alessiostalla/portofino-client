@@ -18,6 +18,9 @@ export class ResourceAction {
     constructor(
         protected url: string, protected parent: ResourceAction,
         public http: HttpClient = parent.http) {
+        while (this.url.endsWith("/")) {
+            this.url = this.url.substring(0, this.url.length - 1);
+        }
     }
 
     refresh(): Observable<this> {

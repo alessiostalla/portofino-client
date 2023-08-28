@@ -1,8 +1,11 @@
 {
     "name": "portofino-commander",
     "author": "Alessio Stalla",
-    "version": "0.9.1",
+    "version": "1.0.0",
     "license": "AGPL-3.0-or-later",
+    "repository": {
+        "url": "https://github.com/alessiostalla/portofino-commander/"
+    },
     "scripts": {
         "clean": "rimraf dist && rimraf *.tgz",
         "build": "yarn run build:esm && yarn run build:cjs && webpack",

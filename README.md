@@ -48,7 +48,7 @@ We start by connecting to a running Portofino service:
 
 ```javascript
 const portofino = Portofino.connect(
-    "http://localhost:8080/", 
+    "http://localhost:8080", 
     new UsernamePasswordAuthenticator(
         new FixedUsernamePasswordProvider("admin", "admin")));
 ```

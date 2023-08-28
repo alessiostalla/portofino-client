@@ -1,4 +1,12 @@
-import {getValidators, ObjectAccessor, ObjectAdapter, Property, TypeConverter, Validator} from "../objectAccessor";
+import {
+    getValidators, NUMBER_TYPE,
+    ObjectAccessor,
+    ObjectAdapter,
+    Property,
+    STRING_TYPE,
+    TypeConverter,
+    Validator
+} from "../objectAccessor";
 
 export class FormAdapter extends ObjectAdapter<HTMLFormElement> {
     constructor(
@@ -26,7 +34,7 @@ export class FormAdapter extends ObjectAdapter<HTMLFormElement> {
         accessor.properties.forEach(p => {
             let element = this.getFormElement(p);
             if (!element && addMissingFields) {
-                throw "TODO add missing element " + p.name + " not supported";
+                element = this.addField(p);
             }
             if (element instanceof HTMLInputElement) {
                 const validators = getValidators(p);
@@ -35,6 +43,27 @@ export class FormAdapter extends ObjectAdapter<HTMLFormElement> {
                 }
             }
         });
+    }
+
+    protected addField(p: Property): Element | undefined {
+        if (p.selectionProvider) {
+            throw `Add missing field ${p.name} with selection provider not supported`;
+        }
+        if (p.type == STRING_TYPE || p.portofinoType == NUMBER_TYPE) {
+            const id = (this.object.id || "") + "-" + p.name;
+            const container = new HTMLSpanElement();
+            const label = new HTMLLabelElement();
+            label.textContent = p.label;
+            label.htmlFor = id;
+            const input = new HTMLInputElement();
+            input.id = id;
+            container.appendChild(label);
+            container.appendChild(input);
+            this.object.appendChild(container);
+            return input;
+        } else {
+            throw `Add missing field ${p.name} of type ${p.type} (${p.portofinoType}) not supported`;
+        }
     }
 
     protected setupValidators(property: Property, element: HTMLInputElement, validators: Validator[]) {
