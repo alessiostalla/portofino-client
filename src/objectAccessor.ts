@@ -1,4 +1,4 @@
-export const loadObjectAccessor = (c: ObjectAccessor) => {
+export const loadObjectAccessor = (c: ObjectAccessor | any) => {
   if(!c) {
     return c;
   }
@@ -43,6 +43,10 @@ export class ObjectAccessor {
 
   static create(values: ObjectAccessor | any): ObjectAccessor {
     const ca = Object.assign(new ObjectAccessor(), values);
+    ca.properties = [];
+    for (const propDef of values.properties) {
+      ca.properties.push(Property.create(propDef));
+    }
     ca.initSelectionProviders();
     return ca;
   }
@@ -102,7 +106,9 @@ export class Property {
   selectionProvider: SelectionProvider;
 
   static create(values: Property | any): Property {
-    return Object.assign(new Property(), values)
+    const definition = {...values};
+    delete definition.type;
+    return Object.assign(new Property(), definition);
   }
 
   static get(owner: ObjectAccessor, name: string) {

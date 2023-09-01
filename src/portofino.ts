@@ -9,11 +9,12 @@ interface Operation {
     signature: string;
     name: string;
     available: boolean;
-    invoke: (config: RequestInit) => Observable<Response>;
+    invoke: (config?: RequestInit) => Observable<Response>;
 }
 
 export class ResourceAction {
-    public operations: { [name: string]: Operation } = {};
+    protected _operations: { [name: string]: Operation } = {};
+    public operations: Observable<{ [p: string]: Operation }>;
 
     constructor(
         protected url: string, protected parent: ResourceAction,
@@ -28,10 +29,10 @@ export class ResourceAction {
         return this.http.get(this.url + "/:operations").pipe(
             mergeMap(v => from(v.json())),
             map((ops: Operation[]) => {
-                for (const op in resource.operations) {
+                for (const op in resource._operations) {
                     delete resource[op];
                 }
-                resource.operations = {};
+                resource._operations = {};
                 ops.forEach(op => resource.installOperation(op));
                 return resource;
             }));
@@ -48,7 +49,7 @@ export class ResourceAction {
                         return (...args: any[]) => self.proxy(
                             subject.pipe(mergeMap(r => r.get.apply(r, args))) as Observable<any>);
                     } else if(p === "operations") {
-                        return subject.pipe(map(r => r.operations));
+                        return subject.pipe(map(r => r._operations));
                     } else if(self.isProxyProperty(p)) {
                         return self.proxy(subject.pipe(mergeMap(r => {
                             return r[p] as Observable<any>
@@ -73,6 +74,7 @@ export class ResourceAction {
                 }
             });
         } else {
+            this.operations = subject.pipe(map(r => r._operations));
             return subject;
         }
     }
@@ -140,7 +142,7 @@ export class ResourceAction {
         this[name] = operationFunction;
         operationFunction.available = op.available;
         op.invoke = operationFunction;
-        this.operations[name] = op;
+        this._operations[name] = op;
     }
 }
 
@@ -293,7 +295,7 @@ export class Portofino extends ResourceAction {
             }));
     }
 
-    protected isProxyProperty(name) {
+    protected isProxyProperty(name: string | symbol) {
         return super.isProxyProperty(name) || name === "auth" || name === "upstairs";
     }
 
