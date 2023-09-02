@@ -8,7 +8,7 @@ import {
     Validator
 } from "../objectAccessor";
 import {ResourceAction} from "../portofino";
-import {from, map, mergeMap, Observable, of, throwError} from "rxjs";
+import {from, map, mergeMap, Observable, of, ReplaySubject, throwError} from "rxjs";
 
 export class FormAdapter extends ObjectAdapter<HTMLFormElement> {
     constructor(
@@ -41,7 +41,7 @@ export class FormAdapter extends ObjectAdapter<HTMLFormElement> {
             if (element instanceof HTMLInputElement) {
                 const validators = getValidators(p);
                 if (validators) {
-                    this.setupValidators(p, element, validators);
+                    this.setupValidation(p, element, validators);
                 }
             }
         });
@@ -61,8 +61,9 @@ export class FormAdapter extends ObjectAdapter<HTMLFormElement> {
                     return accessor;
                 }));
         }));
-        obs.subscribe();
-        return obs;
+        const subject = new ReplaySubject<ObjectAccessor>(1);
+        obs.subscribe(subject);
+        return subject;
     }
 
     protected addField(p: Property): Element | undefined {
@@ -78,38 +79,45 @@ export class FormAdapter extends ObjectAdapter<HTMLFormElement> {
         }
     }
 
-    protected addTextField(p: Property) {
-        const id = (this.object.id || "") + "-" + p.name;
+    protected addTextField(property: Property) {
+        const formId = this.object.getAttribute("id");
+        const id = (formId ? (formId + "-") : "") + property.name;
         const container = document.createElement("span");
         const label = document.createElement("label");
-        label.textContent = p.label;
+        label.textContent = property.label;
         label.htmlFor = id;
         const input = document.createElement("input");
         input.id = id;
+        input.name = this.nameMapper(property.name);
         container.appendChild(label);
         container.appendChild(input);
         this.object.appendChild(container);
         return input;
     }
 
-    protected setupValidators(property: Property, element: HTMLInputElement, validators: Validator[]) {
+    protected setupValidation(property: Property, element: HTMLInputElement, validators: Validator[]) {
+        this.validate(property, element, validators);
         const listener = element.onchange;
         element.onchange = (ev: Event) => {
-            element.dataset["validation-errors"] = "";
-            validators.forEach(validator => {
-                const error = validator.validationError(this.get(property));
-                if (error) {
-                    if (element.dataset["validation-errors"]) {
-                        element.dataset["validation-errors"] += "," + error;
-                    } else {
-                        element.dataset["validation-errors"] = error;
-                    }
-                }
-            });
+            this.validate(property, element, validators);
             if (listener) {
                 return listener.call(element, ev);
             }
         };
+    }
+
+    protected validate(property: Property, element: HTMLInputElement, validators: Validator[]) {
+        element.dataset["validationErrors"] = "";
+        validators.forEach(validator => {
+            const error = validator.validationError(this.get(property));
+            if (error) {
+                if (element.dataset["validationErrors"]) {
+                    element.dataset["validationErrors"] += "," + error;
+                } else {
+                    element.dataset["validationErrors"] = error;
+                }
+            }
+        });
     }
 
     protected getFormElement(property: Property) {
