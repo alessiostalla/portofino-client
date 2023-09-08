@@ -1,5 +1,7 @@
 import {
-    getValidators, loadObjectAccessor, NUMBER_TYPE,
+    BOOLEAN_TYPE,
+    getValidators,
+    NUMBER_TYPE,
     ObjectAccessor,
     ObjectAdapter,
     Property,
@@ -8,7 +10,22 @@ import {
     Validator
 } from "../objectAccessor";
 import {ResourceAction} from "../portofino";
-import {from, map, mergeMap, Observable, of, ReplaySubject, throwError} from "rxjs";
+import {from, map, mergeMap, Observable, ReplaySubject, throwError} from "rxjs";
+
+export enum Mode {
+    READ,
+    CREATE,
+    EDIT
+}
+
+export type FormSetupOptions = {
+    addMissingFields: boolean;
+    mode: Mode
+}
+
+const DEFAULT_FORM_SETUP_OPTIONS: FormSetupOptions = {
+    addMissingFields: true, mode: Mode.EDIT
+}
 
 export class FormAdapter extends ObjectAdapter<HTMLFormElement> {
     constructor(
@@ -32,10 +49,12 @@ export class FormAdapter extends ObjectAdapter<HTMLFormElement> {
         }
     }
 
-    setup(accessor: ObjectAccessor, addMissingFields = true) {
-        accessor.properties.forEach(p => {
+    setup(accessor: ObjectAccessor, options = DEFAULT_FORM_SETUP_OPTIONS) {
+        accessor.properties
+            .filter(p => this.isEnabled(p, options.mode))
+            .forEach(p => {
             let element = this.getFormElement(p);
-            if (!element && addMissingFields) {
+            if (!element && options.addMissingFields) {
                 element = this.addField(p);
             }
             if (element instanceof HTMLInputElement) {
@@ -47,7 +66,10 @@ export class FormAdapter extends ObjectAdapter<HTMLFormElement> {
         });
     }
 
-    fromResource(resource: ResourceAction, addMissingFields = true, operation = "describeClassAccessor") {
+    fromResource(
+        resource: ResourceAction, options?: FormSetupOptions,
+        operation = "describeClassAccessor"
+    ): Observable<ObjectAccessor> {
         const obs: Observable<ObjectAccessor> = resource.operations.pipe(mergeMap(ops => {
             if (!ops[operation]) {
                 return throwError(() =>
@@ -56,8 +78,8 @@ export class FormAdapter extends ObjectAdapter<HTMLFormElement> {
             return ops[operation].invoke().pipe(
                 mergeMap(resp => from(resp.json())),
                 map((acc: any) => {
-                    const accessor = loadObjectAccessor(acc);
-                    this.setup(accessor, addMissingFields);
+                    const accessor = ObjectAccessor.create(acc);
+                    this.setup(accessor, options || DEFAULT_FORM_SETUP_OPTIONS);
                     return accessor;
                 }));
         }));
@@ -74,25 +96,49 @@ export class FormAdapter extends ObjectAdapter<HTMLFormElement> {
             return this.addTextField(p);
         } else if (p.type == NUMBER_TYPE) {
             return this.addTextField(p);
+        } else if (p.type == BOOLEAN_TYPE) {
+            return this.addBooleanField(p);
         } else {
             throw `Add missing field ${p.name} of type ${p.type} (${p.portofinoType}) not supported`;
         }
     }
 
     protected addTextField(property: Property) {
-        const formId = this.object.getAttribute("id");
-        const id = (formId ? (formId + "-") : "") + property.name;
-        const container = document.createElement("span");
-        const label = document.createElement("label");
-        label.textContent = property.label;
-        label.htmlFor = id;
+        const id = this.getFieldId(property);
         const input = document.createElement("input");
         input.id = id;
         input.name = this.nameMapper(property.name);
-        container.appendChild(label);
-        container.appendChild(input);
+        const container = this.createFieldContainer(property, input);
         this.object.appendChild(container);
         return input;
+    }
+
+    protected addBooleanField(property: Property) {
+        const id = this.getFieldId(property);
+        const checkbox = document.createElement("input");
+        checkbox.id = id;
+        checkbox.type = "checkbox";
+        checkbox.name = this.nameMapper(property.name);
+        const container = this.createFieldContainer(property, checkbox);
+        this.object.appendChild(container);
+        return checkbox;
+    }
+
+    protected createFieldContainer(property: Property, input: HTMLElement) {
+        const container = document.createElement("span");
+        container.className = "portofino-form-field";
+        const label = document.createElement("label");
+        label.textContent = property.label + " ";
+        label.htmlFor = input.id;
+        container.appendChild(label);
+        container.appendChild(input);
+        return container;
+    }
+
+    private getFieldId(property: Property) {
+        const formId = this.object.getAttribute("id");
+        const id = (formId ? (formId + "-") : "") + property.name;
+        return id;
     }
 
     protected setupValidation(property: Property, element: HTMLInputElement, validators: Validator[]) {
@@ -122,5 +168,9 @@ export class FormAdapter extends ObjectAdapter<HTMLFormElement> {
 
     protected getFormElement(property: Property) {
         return this.object.querySelector(`[name=${this.nameMapper(property.name)}]`);
+    }
+
+    isEnabled(property: Property, mode: Mode) {
+        return true; // TODO
     }
 }

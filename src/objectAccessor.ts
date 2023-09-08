@@ -1,15 +1,3 @@
-export const loadObjectAccessor = (c: ObjectAccessor | any) => {
-  if(!c) {
-    return c;
-  }
-  if(c.initSelectionProviders) {
-    c.initSelectionProviders();
-    return c;
-  } else {
-    return ObjectAccessor.create(c);
-  }
-};
-
 export const BOOLEAN_TYPE = "boolean";
 export const DATE_TYPE = "date";
 export const NUMBER_TYPE = "number";
@@ -41,7 +29,7 @@ export class ObjectAccessor {
     }
   }
 
-  static create(values: ObjectAccessor | any): ObjectAccessor {
+  static create(values: ObjectAccessor | any): ObjectAccessor | undefined {
     const ca = Object.assign(new ObjectAccessor(), values);
     ca.properties = [];
     for (const propDef of values.properties) {
