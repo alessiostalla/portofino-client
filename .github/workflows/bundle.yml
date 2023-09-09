@@ -14,8 +14,8 @@ jobs:
       - name: Build, Lint, Test, and Bundle
         run: |
           yarn install --network-timeout 100000
-          yarn test
           yarn lint
+          yarn test
           yarn build
       - name: Upload Artifact
         uses: actions/upload-artifact@v3
