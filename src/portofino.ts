@@ -29,6 +29,9 @@ export class ResourceAction {
         return this.http.get(this.url + "/:operations").pipe(
             mergeMap(v => from(v.json())),
             map((ops: Operation[]) => {
+                if (!Array.isArray(ops)) {
+                    throw new Error(`${this.url}: invalid list of operations received`);
+                }
                 for (const op in resource._operations) {
                     delete resource[op];
                 }
@@ -38,7 +41,7 @@ export class ResourceAction {
             }));
     }
 
-    protected proxy<T extends ResourceAction>(observable: Observable<T>) {
+    protected proxy<T extends ResourceAction>(observable: Observable<T>): Observable<T> & T {
         const subject = new ReplaySubject<T>(1);
         observable.subscribe(subject);
         const self = this;
@@ -72,10 +75,10 @@ export class ResourceAction {
                         }));
                     }
                 }
-            });
+            }) as any;
         } else {
             this.operations = subject.pipe(map(r => r._operations));
-            return subject;
+            return subject as any;
         }
     }
 
@@ -83,16 +86,15 @@ export class ResourceAction {
         return false;
     }
 
-    get(segment: string, type: new (...args) => ResourceAction = ResourceAction, proxy = true) {
+    get<T extends ResourceAction>(
+        segment: string,
+        type: new (...args) => T = ResourceAction as any,
+        setup: (o: Observable<T>) => Observable<T> = o => o) {
         if (segment.startsWith("/")) {
             return this.root.get(segment);
         } else {
-            const action = new type(this.url + "/" + segment, this).refresh();
-            if (proxy) {
-                return this.proxy(action);
-            } else {
-                return action;
-            }
+            const action = new type(this.url + segment, this).refresh();
+            return this.proxy(setup(action));
         }
     }
 
@@ -182,8 +184,8 @@ export interface ConnectOptions {
 }
 
 export class Portofino extends ResourceAction {
-    public auth: Observable<ResourceAction> | ResourceAction;
-    public upstairs: Observable<Upstairs> | Upstairs;
+    public auth: Observable<ResourceAction> & ResourceAction;
+    public upstairs: Observable<Upstairs> & Upstairs;
     public readonly notifications = new Subject<Notification>();
 
     public tokenExpirationThresholdMs = 10 * 60 * 1000; //Ten minutes before the token expires, refresh it
@@ -266,16 +268,15 @@ export class Portofino extends ResourceAction {
         return portofino.proxy(portofino.refresh());
     }
 
-    get(segment: string, type: new (...args) => ResourceAction = ResourceAction, proxy = true) {
+    get<T extends ResourceAction>(
+        segment: string,
+        type: new (...args) => T = ResourceAction as any,
+        setup: (o: Observable<T>) => Observable<T> = o => o) {
         if (!segment.startsWith("/")) {
             segment = "/" + segment;
         }
         const action = new type(this.url + segment, this).refresh();
-        if (proxy) {
-            return this.proxy(action);
-        } else {
-            return action;
-        }
+        return this.proxy(setup(action));
     }
 
     get root() {
@@ -287,11 +288,11 @@ export class Portofino extends ResourceAction {
         return super.refresh().pipe(
             tap(() => {
                 self.auth = self.get(":auth");
-                self.upstairs = self.proxy(self.get("portofino-upstairs", Upstairs, false)
-                    .pipe(catchError((e) => {
-                        console.log("Upstairs not available", e);
-                        return of(null);
-                    })));
+                self.upstairs = self.get("portofino-upstairs", Upstairs,
+                        o => o.pipe(catchError((e) => {
+                            console.log("Upstairs not available", e);
+                            return of(null);
+                        })));
             }));
     }
 

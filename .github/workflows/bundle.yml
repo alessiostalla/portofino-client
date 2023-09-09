@@ -11,9 +11,10 @@ jobs:
       - uses: actions/checkout@v3
       - name: Setup Node
         uses: actions/setup-node@v3
-      - name: Build, Lint and Bundle
+      - name: Build, Lint, Test, and Bundle
         run: |
           yarn install --network-timeout 100000
+          yarn test
           yarn lint
           yarn build
       - name: Upload Artifact
