@@ -5,10 +5,13 @@ import {Authenticator, NO_AUTH_HEADER} from "./auth";
 import i18next from "i18next";
 import {initDefaultI18n} from "./i18n";
 
-interface Operation {
+export interface OperationDefinition {
     signature: string;
     name: string;
     available: boolean;
+}
+
+export interface Operation extends OperationDefinition {
     invoke: (config?: RequestInit) => Observable<Response>;
 }
 
@@ -28,7 +31,7 @@ export class ResourceAction {
         const resource = this;
         return this.http.get(this.url + "/:operations").pipe(
             mergeMap(v => from(v.json())),
-            map((ops: Operation[]) => {
+            map((ops: OperationDefinition[]) => {
                 if (!Array.isArray(ops)) {
                     throw new Error(`${this.url}: invalid list of operations received`);
                 }
@@ -57,8 +60,15 @@ export class ResourceAction {
                         return self.proxy(subject.pipe(mergeMap(r => {
                             return r[p] as Observable<any>
                         })));
-                    } else if(p in subject || p === "operator" || p === "source") { // RxJS members
-                        return subject[p];
+                    } else if(p in subject || p === "operator" || p === "source") {
+                        // RxJS members, propagate the proxy
+                        return subject.pipe(map(action => {
+                            if (action) {
+                                return receiver;
+                            } else {
+                                return action;
+                            }
+                        }))[p];
                     } else {
                         return (...args: any[]) => subject.pipe(mergeMap(r => {
                             if (r && r[p]) {
@@ -102,7 +112,7 @@ export class ResourceAction {
         return this.parent.root;
     }
 
-    protected installOperation(op: Operation) {
+    protected installOperation(op: OperationDefinition) {
         if (!op.signature) {
             return;
         }
@@ -143,8 +153,7 @@ export class ResourceAction {
         }
         this[name] = operationFunction;
         operationFunction.available = op.available;
-        op.invoke = operationFunction;
-        this._operations[name] = op;
+        this._operations[name] = {...op, invoke: operationFunction};
     }
 }
 

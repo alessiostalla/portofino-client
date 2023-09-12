@@ -11,7 +11,7 @@
     "build": "yarn run build:esm && yarn run build:cjs && webpack",
     "build:esm": "tsc --module es6 --outDir dist/esm",
     "build:cjs": "tsc --module commonjs --outDir dist/cjs",
-    "lint": "eslint src",
+    "lint": "eslint src && eslint tests",
     "test": "jest"
   },
   "browser": "dist/cjs/index.js",
