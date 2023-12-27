@@ -98,7 +98,7 @@ export class ResourceAction {
 
     get<T extends ResourceAction>(
         segment: string,
-        type: new (...args) => T = ResourceAction as any,
+        type: new (...args: any[]) => T = ResourceAction as any,
         setup: (o: Observable<T>) => Observable<T> = o => o) {
         if (segment.startsWith("/")) {
             return this.root.get(segment);
