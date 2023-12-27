@@ -12,7 +12,8 @@
     "build:esm": "tsc --module es6 --outDir dist/esm",
     "build:cjs": "tsc --module commonjs --outDir dist/cjs",
     "lint": "eslint src && eslint tests",
-    "test": "jest"
+    "test": "jest",
+    "relase": "yarn clean && yarn lint && yarn test && yarn build && yarn publish"
   },
   "browser": "dist/cjs/index.js",
   "main": "dist/cjs/index.js",
