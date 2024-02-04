@@ -19,7 +19,7 @@ module.exports = {
         extensions: [ ".ts", ".js"],
     },
     output: {
-        filename: `portofino-commander-${version}-bundle.js`,
+        filename: `portofino-client-${version}-bundle.js`,
         path: path.resolve(__dirname, "public", "static", "bundle"),
     },
 };

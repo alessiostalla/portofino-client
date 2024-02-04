@@ -20,5 +20,5 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v3
         with:
-          name: portofino-commander-bundle
+          name: portofino-client-bundle
           path: public/static/bundle

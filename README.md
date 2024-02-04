@@ -1,47 +1,47 @@
-[![npm version](https://badge.fury.io/js/portofino-commander.svg)](https://badge.fury.io/js/portofino-commander)
+[![npm version](https://badge.fury.io/js/portofino-client.svg)](https://badge.fury.io/js/portofino-client)
 
-# Portofino-commander
+# Portofino-client
 
 A JavaScript library to query, inspect and modify a [Portofino](https://github.com/ManyDesigns/Portofino) service. We can use this to build an application
 on top of a Portofino backend.
 
-Portofino-commander has few dependencies:
+Portofino-client has few dependencies:
 - The standard `fetch` API, for HTTP requests;
 - RxJS, for reactive APIs;
 - jwt-decode, to handle authentication;
 - i18next, for internationalization.
 
-These all work on the browser as well as in Node, therefore Portofino-commander runs in both environments.
+These all work on the browser as well as in Node, therefore Portofino-client runs in both environments.
 
 ## Installation
 
-Portofino-commander is available from the NPM Registry, so we can use tools like NPM or Yarn to install it:
+Portofino-client is available from the NPM Registry, so we can use tools like NPM or Yarn to install it:
 
 ```
-npm install --save portofino-commander
+npm install --save portofino-client
 ```
 
 or
 
 ```
-yarn add portofino-commander
+yarn add portofino-client
 ```
 
-For convenience, we also provide a minified bundle of Portofino-commander and its dependencies for use in the browser,
+For convenience, we also provide a minified bundle of Portofino-client and its dependencies for use in the browser,
 so you can include it like so:
 
 ```html
-<script src="./static/bundle/portofino-commander-0.9.2-bundle.js" charset="UTF-8" defer></script>
+<script src="./static/bundle/portofino-client-0.9.2-bundle.js" charset="UTF-8" defer></script>
 ```
 
-You can find the bundle in the [Releases page](https://github.com/alessiostalla/portofino-commander/releases).
+You can find the bundle in the [Releases page](https://github.com/alessiostalla/portofino-client/releases).
 
 Such a deployment option is not recommended except for quick testing or very simple pages/applications.
 In general, we recommend using proper build tools.  
 
 ## Usage
 
-Portofino-commander tries to provide intuitive APIs on top of a relatively complex implementation. Let's see how to use it.
+Portofino-client tries to provide intuitive APIs on top of a relatively complex implementation. Let's see how to use it.
 
 ### Connection to a Portofino Service
 
@@ -99,7 +99,7 @@ Once we've got a connection, we can make requests to the server. We do this conc
 - First, we obtain a _resource_ (e.g. a CRUD `ResourceAction`) – this is a _class_ in the application;
 - Then, we invoke an _operation_ on the resource (e.g. "save" on an CRUD) – this is a _method_ of the resource.
 
-Portofino-commander implements both access to a resource and invocation of an operation with an RxJS Observable. 
+Portofino-client implements both access to a resource and invocation of an operation with an RxJS Observable. 
 Observables are proxied so that we don't have to use the RxJS APIs (such as `pipe` or `subscribe`) to chain them.
 Some examples follow.
 
@@ -119,7 +119,7 @@ Then, we can invoke an operation like so:
 portofino.upstairs.getInfo().subscribe(observer);
 ```
 
-`portofino.upstairs` is a special resource that is pre-filled by Portofino-commander if it's available on the service.
+`portofino.upstairs` is a special resource that is pre-filled by Portofino-client if it's available on the service.
 
 We can access other resources using the `get` method:
 
@@ -169,7 +169,7 @@ portofino.logout().subscribe();
 Note how calls to `subscribe` are needed to actually perform the HTTP requests to the backend. This is because RxJS is
 "lazy" and doesn't run any code until someone looks at the results (i.e. subscribes to the observable).
 
-Portofino-commander automatically discovers operations such as _load()_ above for CRUD, or _getTablesInSchema(db, schema)_,
+Portofino-client automatically discovers operations such as _load()_ above for CRUD, or _getTablesInSchema(db, schema)_,
 by querying the Portofino service. That's why `resource.get(subresource)` returns an _Observable_. The resource is only
 "ready" after the service has responded with the list of available operations for that resource.
 
@@ -232,26 +232,26 @@ invoking operations on the server (such as _load_ in the previous example) is an
 
 ## Compatibility
 
-Portofino-commander is developed and tested against Portofino 6.
+Portofino-client is developed and tested against Portofino 6.
 
-While portofino-commander's general approach works perfectly well with Portofino 5, some REST APIs in P5 weren't 
+While portofino-client's general approach works perfectly well with Portofino 5, some REST APIs in P5 weren't 
 designed with such a client in mind, and require some extra handling to invoke them.
 For example, some methods require that we explicitly set an Accept header to restrict the response to JSON.
-In other cases, operation names conflict with portofino-commander's own functions (e.g. "get"). This is the case of
+In other cases, operation names conflict with portofino-client's own functions (e.g. "get"). This is the case of
 the CRUD's load operation. In Portofino 5, instead of using `crud.load()`, we'll have to write `crud.op_get()` which
 is a bit uglier to read.
 
 ## Authentication
 
-Portofino-commander handles JWT-based authentication for you, including refreshing the token when it's about to expire.
+Portofino-client handles JWT-based authentication for you, including refreshing the token when it's about to expire.
 
 We can easily write a `UsernamePasswordProvider` that asks the user for their credentials using the UI components
-of our choice. Portofino-commander is completely UI agnostic (but its use of RxJS may integrate well with UI frameworks
+of our choice. Portofino-client is completely UI agnostic (but its use of RxJS may integrate well with UI frameworks
 that use RxJS, such as Angular).
 
 ## I18n
 
-Portofino-commander uses I18next to translate error messages. It only comes with English translations and doesn't do 
+Portofino-client uses I18next to translate error messages. It only comes with English translations and doesn't do 
 any language detection on its own. It's easy to provide strings in other languages and plug in a language detector.
 We can just follow I18next's documentation, and ensure that Portofino doesn't set up its default I18n configuration:
 
@@ -266,9 +266,9 @@ Work in progress.
 
 ## Licensing
 
-Portofino-commander is licensed under the GNU AGPL. In layman terms, if you build any kind of tool or service on top of
+Portofino-client is licensed under the GNU AGPL. In layman terms, if you build any kind of tool or service on top of
 it, you need to release its source code.
-If you'd like to use portofino-commander as a component in a tool or service and require a more business-friendly license,
+If you'd like to use portofino-client as a component in a tool or service and require a more business-friendly license,
 please open an issue or contact me directly. I'm open to licensing this to specific organizations so that they can use it,
 even free of charge, but I prefer to have a say in that.
 
